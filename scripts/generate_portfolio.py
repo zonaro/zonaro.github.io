@@ -359,7 +359,7 @@ def project_page(project: Project) -> str:
 <body>
   <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
   <header class="site-header">
-    <a class="brand" href="/"><span class="brand-mark">Z<span class="brand-dot">.</span></span><span class="brand-text">ZONARO<span class="brand-sub">BEATBOX & CODE</span></span></a>
+    <a class="brand" href="/"><img class="brand-logo" src="/assets/redclaw-logo.svg" alt="" width="47" height="47"><span class="brand-text">ZONARO<span class="brand-sub">BEATBOX & CODE</span></span></a>
     <nav class="persona-nav" aria-label="Portfólio"><a class="persona-link active" href="/">← Desenvolvedor</a><a class="persona-link" href="/beatbox/">♫ Beatboxer</a></nav>
   </header>
   <main id="conteudo" class="section-shell project-detail">
