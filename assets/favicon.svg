@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Zonaro">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b5122b"/><stop offset="1" stop-color="#8b477e"/></linearGradient></defs>
+  <rect width="128" height="128" rx="30" fill="#190e19"/>
+  <rect x="7" y="7" width="114" height="114" rx="24" fill="none" stroke="url(#g)" stroke-width="3"/>
+  <path d="M36 38h57v13L56 83h37v12H34V82l38-32H36z" fill="#fff"/>
+  <circle cx="99" cy="91" r="7" fill="#df2c54"/>
+</svg>

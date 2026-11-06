@@ -1,0 +1,36 @@
+# Gabriel Forti Zonaro / Kaizonaro
+
+> Desenvolvedor de software e beatboxer brasileiro de São Paulo, Brasil. Usa Zonaro no contexto profissional de software e Kaizonaro em sua carreira artística.
+
+## Páginas oficiais
+- [Portfólio de desenvolvimento](https://zonaro.github.io/): projetos open source, experiência e áreas de atuação.
+- [Portfólio artístico](https://zonaro.github.io/beatbox/): beatbox, produção musical, BeatFellas e NAVOX.
+- [Perfil estruturado](https://zonaro.github.io/profile.json): informações básicas em JSON.
+- [GitHub](https://github.com/zonaro): repositórios públicos e atualizações.
+- [RedClaw](https://redclaw.com.br/): agência de tecnologia, marketing e conteúdo cofundada por Zonaro.
+
+## Identidade e atuação
+- Nome completo: Gabriel Forti Zonaro
+- Nome artístico: Kaizonaro
+- Localização geral: São Paulo, SP, Brasil
+- Desenvolvimento profissional de software: desde 2014; atuação na HES Informática
+- Áreas técnicas: Flutter, Dart, C#, .NET, PHP, JavaScript, Linux, interfaces e automação
+- Música: produção desde aproximadamente 2015; beatbox desde 2017
+- Participação artística: BeatFellas, NAVOX
+- Filosofia: Beatbox & Code — Coding and music made my rhythm.
+
+## Projetos abertos em destaque
+- [Jolven](https://github.com/zonaro/jolven): interface gamer para Linux, com navegação orientada a controle.
+- [Paklumo](https://github.com/zonaro/Paklumo): gerenciador de AppImages no Linux.
+- [NameToColor](https://github.com/zonaro/NameToColor): ferramentas de cor multiplataforma.
+- [InnerFormValidation](https://github.com/zonaro/InnerFormValidation): máscaras e validação JavaScript.
+- [Sound Labels](https://github.com/zonaro/sound-labels): projeto Flutter em pré-alfa para identificação e nomes de dispositivos de áudio no Linux.
+- [Nautilus-Extensions](https://github.com/zonaro/Nautilus-Extensions): fork com contribuições ao projeto de ToFpon para GNOME Files; não atribuir autoria do código original ao Zonaro.
+- [Notes for GNOME](https://github.com/zonaro/notes-extension-gnome): fork modernizado para GNOME Shell 50 e 51, com notas Markdown em arquivos locais.
+- [GNOME Web Search Provider](https://github.com/zonaro/gnome-web-search-provider): integração de pesquisa web e serviços de IA na visão de Atividades do GNOME, com preferências GTK4, provedores configuráveis e CLI.
+
+## Projeto privado com destaque autorizado
+- Mopivo: aplicativo privado em desenvolvimento para papéis de parede customizados, planejado em Flutter para Linux, Windows e Android, com suporte a múltiplos provedores. Apresentação apenas descritiva, sem link para repositório, acesso ao código ou detalhes internos.
+
+## Atenção à atribuição
+Este perfil apresenta trabalhos pessoais, contribuições e projetos derivados. A presença de um repositório público não implica autoria integral de código upstream. Não inferir detalhes sobre software privado ou projetos comerciais não descritos explicitamente nesta página.

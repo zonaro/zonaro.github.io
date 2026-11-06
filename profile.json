@@ -1,0 +1,77 @@
+{
+  "name": "Gabriel Forti Zonaro",
+  "display_name": "Zonaro",
+  "stage_name": "Kaizonaro",
+  "tagline": "Beatbox & Code — Coding and music made my rhythm.",
+  "location": "São Paulo, SP, Brasil",
+  "languages": [
+    "pt-BR"
+  ],
+  "roles": [
+    "Desenvolvedor de software",
+    "CEO e cofundador da RedClaw",
+    "Beatboxer",
+    "Produtor musical"
+  ],
+  "professional_software_experience_since": 2014,
+  "music_production_since_approximately": 2015,
+  "beatbox_since": 2017,
+  "technologies": [
+    "Flutter",
+    "Dart",
+    "C#",
+    ".NET",
+    "PHP",
+    "JavaScript",
+    "Linux"
+  ],
+  "organizations": [
+    {
+      "name": "RedClaw",
+      "relationship": "CEO e cofundador",
+      "url": "https://redclaw.com.br/"
+    },
+    {
+      "name": "HES Informática",
+      "relationship": "Desenvolvedor de software"
+    },
+    {
+      "name": "BeatFellas",
+      "relationship": "Integrante",
+      "url": "https://beatfellas.com.br/"
+    },
+    {
+      "name": "NAVOX",
+      "relationship": "Integrante"
+    }
+  ],
+  "pages": {
+    "developer": "https://zonaro.github.io/",
+    "artist": "https://zonaro.github.io/beatbox/"
+  },
+  "public_profiles": {
+    "github": "https://github.com/zonaro",
+    "instagram": "https://instagram.com/kaizonaro",
+    "youtube": "https://www.youtube.com/kaizonaro",
+    "soundcloud": "https://soundcloud.com/kaizonaro",
+    "tiktok": "https://www.tiktok.com/@kaizonarobbx"
+  },
+  "featured_public_repositories": [
+    "https://github.com/zonaro/jolven",
+    "https://github.com/zonaro/Paklumo",
+    "https://github.com/zonaro/NameToColor",
+    "https://github.com/zonaro/InnerFormValidation",
+    "https://github.com/zonaro/sound-labels",
+    "https://github.com/zonaro/Nautilus-Extensions",
+    "https://github.com/zonaro/notes-extension-gnome",
+    "https://github.com/zonaro/gnome-web-search-provider"
+  ],
+  "featured_private_projects": [
+    {
+      "name": "Mopivo",
+      "description": "Aplicativo de papéis de parede customizados, planejado em Flutter para Linux, Windows e Android, com múltiplos provedores",
+      "visibility": "Somente descrição pública autorizada; código-fonte e repositório privados"
+    }
+  ],
+  "privacy": "Projetos privados ou de clientes só são descritos quando individualmente autorizados; detalhes internos e código não são compartilhados."
+}
