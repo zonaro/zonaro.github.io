@@ -98,6 +98,23 @@ h2{font-size:clamp(40px,4.2vw,72px);line-height:1.08;letter-spacing:-.06em;max-w
 .project-card{display:flex;flex-direction:column;min-width:0;background:linear-gradient(148deg,rgba(255,255,255,.065),rgba(255,255,255,.025));border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:transform .45s cubic-bezier(.2,.8,.2,1),border-color .45s,box-shadow .45s}
 .project-card:hover{transform:translateY(-8px);border-color:rgba(var(--accent-rgb),.54);box-shadow:0 20px 55px rgba(0,0,0,.2),0 0 32px rgba(var(--accent-rgb),.12)}
 .project-card-private:hover{transform:none;border-color:var(--line);box-shadow:none}
+.project-card-primary{grid-column:span 2;background:linear-gradient(142deg,rgba(var(--accent-rgb),.16),rgba(255,255,255,.035))}
+.card-art-generated{background:radial-gradient(circle at 50% 50%,rgba(var(--accent-rgb),.24),transparent 65%),#19111c}
+.card-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.card-initial{font:800 108px var(--font-display);color:#e8c9df;text-shadow:0 0 40px rgba(var(--accent-rgb),.35);z-index:1}
+.project-detail{padding-top:110px;padding-bottom:120px;max-width:1060px}
+.project-detail h1{font-size:clamp(48px,7vw,100px);line-height:1.05;letter-spacing:-.06em}
+.project-detail-lead{font-size:clamp(18px,2vw,25px);line-height:1.7;max-width:850px;color:#b9acbb;margin:26px 0}
+.project-readme{overflow-wrap:anywhere;line-height:1.8;color:#d4cad5;border-top:1px solid var(--line);padding-top:42px;margin-top:58px}
+.project-readme h1,.project-readme h2,.project-readme h3{font-size:clamp(24px,3vw,37px);line-height:1.2;margin:1.6em 0 .65em;letter-spacing:-.035em}
+.project-readme p,.project-readme ul,.project-readme ol,.project-readme pre,.project-readme table{margin:0 0 24px}
+.project-readme a{color:var(--accent-bright);text-decoration:underline;text-underline-offset:3px}
+.project-readme img{max-width:100%;height:auto;border-radius:9px}
+.project-readme pre{overflow-x:auto;padding:20px;border:1px solid var(--line);border-radius:10px;background:#120e14}
+.project-readme :not(pre)>code{background:rgba(255,255,255,.09);padding:.14em .35em;border-radius:4px}
+.project-readme table{display:block;overflow-x:auto;border-collapse:collapse;max-width:100%}
+.project-readme td,.project-readme th{border:1px solid var(--line);padding:8px 14px}
+.catalog-empty{color:#a99aaa;padding:18px}
 .private-label{font-size:9px;color:#ffb7b7;letter-spacing:.1em;white-space:nowrap}
 .card-meta{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px 0;color:#a99aa9;font:700 10px var(--font-display);letter-spacing:.13em}
 .card-arrow{font-size:20px;color:var(--accent-bright);transition:transform .3s}
@@ -238,6 +255,7 @@ h2{font-size:clamp(40px,4.2vw,72px);line-height:1.08;letter-spacing:-.06em;max-w
   h1{font-size:clamp(52px,6.3vw,82px)}
   .hero-visual{min-height:470px}
   .project-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .project-card-primary{grid-column:span 2}
   .repo-list{grid-template-columns:repeat(3,minmax(0,1fr))}
   .ticker-track{justify-content:flex-start}
 }
@@ -292,6 +310,7 @@ h2{font-size:clamp(40px,4.2vw,72px);line-height:1.08;letter-spacing:-.06em;max-w
   .section-heading-row{margin:37px 0 30px}
   h2{font-size:clamp(39px,10vw,55px)}
   .project-grid{grid-template-columns:1fr}
+  .project-card-primary{grid-column:auto}
   .card-art{height:205px}
   .catalog{margin-top:60px}
   .repo-list{grid-template-columns:1fr;max-height:305px}
