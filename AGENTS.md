@@ -8,4 +8,6 @@
 - Mantenha arquivos gerados em `projects/` e `assets/generated/`; o script nunca deve precisar de credenciais no browser ou no GitHub Pages.
 - Mudanças no gerador exigem testes offline: `python3 -m unittest discover -s tests -v`.
 - Nunca execute `--publish` sem revisar os projetos selecionados e os dados privados. Não publique automaticamente a primeira migração.
+- `scripts/portfolio_dashboard.py` é uma API **exclusivamente local**. Não altere o bind de `127.0.0.1`, a validação de origem/token ou a política de não ler README de privados.
+- Ao editar topics pelo painel, preserve todas as topics que não pertençam ao conjunto de classificação, e recuse alterações concorrentes em vez de sobrescrever sem aviso.
 - Leia `.agents/PORTFOLIO.md` antes de modificar o gerador ou o formato das páginas.

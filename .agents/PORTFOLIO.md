@@ -25,6 +25,15 @@ Topics mutuamente exclusivas: `portfolio-primary`, `portfolio-secondary`, `portf
 - `scripts/update-portfolio.sh` controla prévia, confirmação e publicação. Para `--publish`, exige `main` sem modificações fora dos arquivos gerados, adiciona somente arquivos gerados e faz um único commit.
 - Recomendação: primeiro rodar `--dry-run`, depois geração local e revisão; só então publicar. Automação via `systemd --user` pode ser adicionada futuramente se solicitada.
 
+## Dashboard local
+
+- Inicialização: `./scripts/portfolio-dashboard.sh`, com sessão `gh` válida. Página servida apenas em `http://127.0.0.1:8765/`.
+- Backend stdlib: `scripts/portfolio_dashboard.py`; frontend: `scripts/dashboard/`. Nenhum token é persistido em arquivos ou enviado ao site público.
+- GET `/api/repos` consulta apenas nome, descrição, visibilidade e topics de cada repo (nunca README), com token de sessão. POST `/api/classify` exige token, Origin local, JSON e comparação das topics esperadas com as atuais; altera apenas `portfolio-*` de classificação e preserva as demais.
+- POST `/api/preview` gera os arquivos localmente. POST `/api/publish` exige prévia na sessão e confirmação `PUBLICAR`, depois chama `update-portfolio.sh --publish --yes`.
+- Não existe endpoint de exclusão de repositórios. A UI tem busca, filtros, controles individuais e salvamento em lote.
+- Segurança: bind `127.0.0.1`, Host allowlist, sem CORS, token anti-CSRF e CSP. Não disponibilizar o backend em hospedagem pública.
+
 ## Segurança e limitações
 
 - A topic em um repo privado **é consentimento para tornar nome e descrição públicos**. O README privado nunca é lido, nem para resumir.

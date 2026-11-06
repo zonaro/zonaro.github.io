@@ -40,6 +40,7 @@ Requer `git`, `gh` e `python3`. Após clonar este repositório:
 ```bash
 gh auth login
 gh auth setup-git
+./scripts/portfolio-dashboard.sh
 ./scripts/update-portfolio.sh --dry-run
 ./scripts/update-portfolio.sh
 git diff
@@ -53,6 +54,18 @@ git diff
 - `--publish --yes`: dispensa a confirmação; somente para automação local consciente.
 
 O GitHub Pages permanece configurado para publicar a `main` pela raiz. A versão pública atual não é substituída até uma execução de `--publish`. Execute `--dry-run` e confira especialmente os privados antes da primeira publicação. **Uma topic em um projeto privado significa que nome e descrição serão públicos.**
+
+### Dashboard local de repositórios
+
+Execute `./scripts/portfolio-dashboard.sh` no checkout deste repositório. O painel abre `http://127.0.0.1:8765/` e mostra todos os repositórios acessíveis à conta `zonaro`, públicos e privados. Opcionalmente, use `--port 8766` ou `--no-browser`.
+
+- Busca e filtros por visibilidade e categoria; contadores de destaques e catálogo.
+- Alteração individual ou em lote entre **Oculto**, **Principal**, **Secundário** e **Catálogo**.
+- O botão **Salvar** altera somente as três topics de portfólio, preservando linguagens, tecnologias e demais topics. O painel detecta alterações concorrentes no GitHub e pede atualização antes de sobrescrevê-las.
+- **Gerar prévia local** executa o gerador, mostra os arquivos modificados e não publica nada. Depois da prévia, **Publicar no GitHub Pages** exige a confirmação `PUBLICAR` e executa o mesmo fluxo de commit/push do shell.
+- O servidor escuta exclusivamente em `127.0.0.1`, exige token de sessão e valida origem para escritas; não publica API nem credenciais no Pages. Feche com Ctrl+C.
+
+**Importante:** o código da interface faz parte do repositório público, mas os dados privados e a API de administração são servidos somente pelo processo local. Nunca abra a porta para a rede nem implante `portfolio_dashboard.py` em um servidor público.
 
 ### Arquivos gerados
 
