@@ -15,7 +15,7 @@ import json
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import quote, urljoin, urlsplit
@@ -24,11 +24,13 @@ from xml.etree import ElementTree as ET
 
 try:
     from scripts.portfolio_art import make_cover_svg
+    from scripts.portfolio_labels import applied_labels, load_labels
 except ModuleNotFoundError as exc:
     if exc.name != "scripts":
         raise
     # Direct execution: python3 scripts/generate_portfolio.py
     from portfolio_art import make_cover_svg
+    from portfolio_labels import applied_labels, load_labels
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,6 +88,7 @@ class Project:
     language: str | None = None
     image: str | None = None
     readme_html: str = ""
+    labels: list[dict[str, str]] = field(default_factory=list)
 
     def public_data(self) -> dict:
         # Never write private repo URLs, README content, or internal metadata.
@@ -100,6 +103,7 @@ class Project:
             "homepage": self.homepage,
             "language": self.language,
             "image": self.image,
+            "labels": self.labels,
         }
 
 
@@ -109,6 +113,7 @@ def discover() -> tuple[list[Project], list[str], int]:
         raise GenerationError("Resposta inesperada ao listar repositórios.")
     projects: list[Project] = []
     warnings: list[str] = []
+    palette = load_labels(ROOT)
     for repo in raw:
         name = str(repo.get("name", ""))
         full_name = str(repo.get("nameWithOwner", ""))
@@ -128,6 +133,9 @@ def discover() -> tuple[list[Project], list[str], int]:
             category=category,
             private=bool(repo.get("isPrivate")),
             slug=slug,
+            # Labels are voluntarily public metadata only for public repositories.
+            # Private projects retain the name-and-description-only policy.
+            labels=[] if repo.get("isPrivate") else applied_labels(github_topics(repo.get("repositoryTopics")), palette),
         ))
     projects.sort(key=lambda p: (list(TOPICS.values()).index(p.category), p.name.casefold()))
     return projects, warnings, len(raw)
@@ -279,6 +287,17 @@ def e(value: object) -> str:
     return html.escape(str(value or ""), quote=True)
 
 
+def tag_chips(project: Project) -> str:
+    return "".join(
+        f'<span class="project-tag" style="--tag-color:{e(tag["color"])}">{e(tag["name"])}</span>'
+        for tag in project.labels
+    )
+
+
+def external_link(project: Project) -> str | None:
+    return project.homepage or project.github_url
+
+
 def card(project: Project, number: int) -> str:
     image = (
         f'<img class="card-cover" src="{e(project.image)}" alt="Imagem de destaque de {e(project.name)}" loading="lazy">'
@@ -288,14 +307,19 @@ def card(project: Project, number: int) -> str:
     label = "DESTAQUE PRINCIPAL" if project.category == "primary" else "DESTAQUE SECUNDÁRIO"
     privacy = '<span class="private-label">PROJETO PRIVADO</span>' if project.private else '<span class="card-arrow">↗</span>'
     chips = '<span>Projeto privado</span>' if project.private else (f'<span>{e(project.language)}</span>' if project.language else '')
+    chips += tag_chips(project)
     classes = " project-card-primary" if project.category == "primary" else ""
+    destination = external_link(project)
+    target = (f'<a href="{e(destination)}" target="_blank" rel="noopener noreferrer">'
+              f'{"Visitar site" if project.homepage else "Ver no GitHub"} ↗</a>') if destination else ''
     return (
-        f'        <a class="project-card{classes}" data-curation="{project.category}" href="{detail}">\n'
+        f'        <article class="project-card{classes}" data-curation="{project.category}">\n'
         f'          <div class="card-meta"><span>{number:02d} / {label}</span>{privacy}</div>\n'
         f'          <div class="card-art card-art-generated">{image}</div>\n'
         f'          <div class="card-content"><h3>{e(project.name)}</h3><p>{e(project.description)}</p>'
-        f'<div class="chips">{chips}</div></div>\n'
-        '        </a>'
+        f'<div class="chips">{chips}</div><div class="project-links">{target}'
+        f'<a href="{detail}">Detalhes →</a></div></div>\n'
+        '        </article>'
     )
 
 
@@ -317,7 +341,10 @@ def generate_index(projects: list[Project]) -> str:
         '        <p class="catalog-empty">Nenhum destaque selecionado no GitHub.</p>'
     )
     listings = "\n".join(
-        f'          <li><a href="/projects/{p.slug}/">{e(p.name)} <span>↗</span></a></li>'
+        f'          <li><a href="{e(external_link(p) or "/projects/" + p.slug + "/")}"'
+        f'{" target=\"_blank\" rel=\"noopener noreferrer\"" if external_link(p) else ""}>'
+        f'{e(p.name)} <span>↗</span></a>'
+        f'<div class="catalog-tags">{tag_chips(p)}</div></li>'
         for p in catalog
     ) or '          <li class="catalog-empty">Nenhum projeto no catálogo.</li>'
     source = replace_region(source, "SHOWCASE", showcase)
@@ -339,12 +366,16 @@ def project_page(project: Project) -> str:
     if not body:
         body = '<p>Este projeto ainda não tem um README público disponível.</p>'
     image_meta = f'<meta property="og:image" content="{SITE}{e(project.image)}">' if project.image else ''
+    primary = external_link(project)
     actions = (
-        f'<a class="button button-primary" href="{e(project.github_url)}" target="_blank" rel="noopener noreferrer">Ver no GitHub ↗</a>'
-        if project.github_url else ''
+        f'<a class="button button-primary" href="{e(primary)}" target="_blank" rel="noopener noreferrer">'
+        f'{"Abrir projeto" if project.homepage else "Ver no GitHub"} ↗</a>'
+        if primary else ''
     )
-    if project.homepage:
-        actions += f'<a class="button button-ghost" href="{e(project.homepage)}" target="_blank" rel="noopener noreferrer">Abrir projeto ↗</a>'
+    if project.homepage and project.github_url:
+        actions += (f'<a class="button button-ghost" href="{e(project.github_url)}" '
+                    f'target="_blank" rel="noopener noreferrer">Ver código no GitHub ↗</a>')
+    labels = f'<div class="chips project-detail-tags">{tag_chips(project)}</div>' if project.labels else ''
     return f'''<!doctype html>
 <html lang="pt-BR" data-persona="dev">
 <head>
@@ -374,6 +405,7 @@ def project_page(project: Project) -> str:
     <p class="section-kicker">{e(project.category.upper())} {'· PROJETO PRIVADO' if project.private else ''}</p>
     <h1>{title}</h1>
     <p class="project-detail-lead">{desc}</p>
+    {labels}
     <div class="hero-actions">{actions}<a class="button button-ghost" href="/#destaques">Voltar ao portfólio ←</a></div>
     <article class="project-readme">{body}</article>
   </main>

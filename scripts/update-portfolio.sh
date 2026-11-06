@@ -38,7 +38,7 @@ if $publish; then
   while IFS= read -r changed; do
     file="${changed:3}"
     case "$file" in
-      index.html|profile.json|llms.txt|sitemap.xml|projects/*|assets/generated/*|assets/portfolio-covers/*) ;;
+      index.html|profile.json|llms.txt|sitemap.xml|projects/*|assets/generated/*|assets/portfolio-covers/*|scripts/portfolio_labels.json) ;;
       *) printf 'Alteração não gerada detectada: %s. Revise antes de publicar.\n' "$file" >&2; exit 1 ;;
     esac
   done < <(git status --porcelain --untracked-files=all)
@@ -55,7 +55,7 @@ if ! $publish; then
   exit 0
 fi
 
-git add -A -- index.html profile.json llms.txt sitemap.xml assets/generated
+git add -A -- index.html profile.json llms.txt sitemap.xml assets/generated scripts/portfolio_labels.json
 # Capas para projetos ainda ocultos devem continuar exclusivamente locais.
 # A lista elegível foi gerada de novo no comando acima; nunca stage a pasta toda.
 declare -A selected_slugs=()
@@ -93,7 +93,7 @@ if ! $yes; then
   printf '\nATENÇÃO: projetos privados classificados serão publicados com nome e descrição.\n'
   read -r -p 'Confirmar commit e push na main? [s/N] ' answer
   if [[ "$answer" != "s" && "$answer" != "S" ]]; then
-    git restore --staged -- index.html profile.json llms.txt sitemap.xml assets/generated
+    git restore --staged -- index.html profile.json llms.txt sitemap.xml assets/generated scripts/portfolio_labels.json
     if [[ -d assets/portfolio-covers ]]; then git restore --staged -- assets/portfolio-covers; fi
     if [[ -d projects ]]; then git restore --staged -- projects; fi
     printf 'Publicação cancelada. Arquivos gerados mantidos para revisão.\n'

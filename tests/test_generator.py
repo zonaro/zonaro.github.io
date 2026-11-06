@@ -118,6 +118,34 @@ class GeneratorTests(unittest.TestCase):
                 generator.generate([public, private])
             self.assertEqual(public.image, "/assets/generated/covers/public-one.png")
 
+    def test_colored_tags_and_homepage_links_are_public_only(self):
+        from scripts.portfolio_labels import write_labels
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_labels(root, {"em-desenvolvimento": {"name": "Em desenvolvimento", "color": "#ff9a3b"}})
+            repos = [dict(repo) for repo in self.repos]
+            for repo in repos:
+                if repo["name"] in {"public-one", "private-one", "hidden-private"}:
+                    repo["repositoryTopics"] = repo["repositoryTopics"] + [
+                        {"name": "portfolio-label-em-desenvolvimento"}]
+
+            with patch.object(generator, "ROOT", root), patch.object(generator, "gh", return_value=json.dumps(repos)):
+                projects, _, _ = generator.discover()
+            public = next(p for p in projects if p.name == "public-one")
+            private = next(p for p in projects if p.name == "private-one")
+            self.assertEqual(public.labels[0]["name"], "Em desenvolvimento")
+            self.assertEqual(private.labels, [])
+            public.github_url = "https://github.com/zonaro/public-one"
+            public.homepage = "https://demo.example"
+            card = generator.card(public, 1)
+            self.assertIn("https://demo.example", card)
+            self.assertIn("#ff9a3b", card)
+            self.assertIn("/projects/public-one/", card)
+            self.assertNotIn("Em desenvolvimento", generator.card(private, 2))
+            detail = generator.project_page(public)
+            self.assertIn("Abrir projeto", detail)
+            self.assertIn("Ver código no GitHub", detail)
+
 
 if __name__ == "__main__":
     unittest.main()

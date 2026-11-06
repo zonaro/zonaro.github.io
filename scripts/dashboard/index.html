@@ -25,7 +25,7 @@
       <div>
         <p class="eyebrow">CONTROLE DO PORTFÓLIO <span class="line"></span> GITHUB CLI</p>
         <h1>Projetos no <em>ritmo certo.</em></h1>
-        <p class="lead">Escolha quais repositórios entram no site. As classificações são salvas nas <strong>topics do GitHub</strong>. A exclusão definitiva é uma ação separada, com confirmação reforçada.</p>
+        <p class="lead">Escolha quais repositórios entram no site. Classificações e tags são salvas nas <strong>topics do GitHub</strong>; descrições e links também são atualizados automaticamente. A exclusão definitiva exige confirmação reforçada.</p>
       </div>
       <div class="intro-art" aria-hidden="true"><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><span class="glyph">&lt;Z/&gt;</span></div>
     </section>
@@ -39,7 +39,7 @@
 
     <section class="workspace" aria-labelledby="workspace-title">
       <div class="workspace-top">
-        <div><p class="section-kicker">GERENCIAMENTO</p><h2 id="workspace-title">Seus repositórios<span class="accent">.</span></h2><p>Classificações e descrições são salvas automaticamente. Capas SVG ficam no portfólio local.</p></div>
+        <div><p class="section-kicker">GERENCIAMENTO</p><h2 id="workspace-title">Seus repositórios<span class="accent">.</span></h2><p>Classificações, tags, descrições e links são salvos automaticamente. Capas SVG ficam no portfólio local.</p></div>
         <button id="refresh-btn" class="button button-ghost" type="button"><span aria-hidden="true">↻</span> Atualizar do GitHub</button>
       </div>
 
@@ -51,7 +51,7 @@
         <label class="filter"><span>CATEGORIA</span><select id="category-filter"><option value="all">Todas</option><option value="primary">Principal</option><option value="secondary">Secundário</option><option value="catalog">Catálogo</option><option value="hidden">Ocultos</option><option value="conflict">Conflitos</option></select></label>
       </div>
 
-      <div class="list-meta"><span id="showing-count" aria-live="polite">Carregando repositórios...</span><span>Classificação e descrição salvas automaticamente</span></div>
+      <div class="list-meta"><span id="showing-count" aria-live="polite">Carregando repositórios...</span><span>Campos salvos automaticamente</span></div>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
       <div id="loading" class="loading"><span class="spinner" aria-hidden="true"></span> Consultando o GitHub CLI...</div>
 
@@ -64,7 +64,7 @@
       </div>
 
       <div class="footer-actions">
-        <p>Alterar a classificação ou sair do campo de descrição salva no GitHub. Excluir é uma operação separada e exige confirmação.</p>
+        <p>Classificações, tags, descrições e sites são salvos ao alterar. Tags e sites são gerenciados apenas em repositórios públicos; projetos privados continuam com nome e descrição apenas.</p>
       </div>
       <div class="publish-panel">
         <h3>Gerar e publicar o portfólio</h3>
@@ -85,7 +85,7 @@
       <img id="cover-preview" class="cover-preview" alt="Prévia da capa SVG">
       <div class="cover-controls">
         <label>Estilo<select id="cover-style"><option value="orbits">Órbitas</option><option value="grid">Grade tecnológica</option><option value="waves">Ondas</option></select></label>
-        <label>Símbolo<select id="cover-icon"><option value="auto">Automático</option><option value="code">Código</option><option value="game">Controle</option><option value="audio">Áudio</option><option value="folder">Pasta</option><option value="spark">Brilho</option><option value="letter">Inicial</option></select></label>
+        <label>Símbolo<select id="cover-icon"><option value="auto">Automático</option><option value="code">Código</option><option value="game">Controle de jogo</option><option value="audio">Fones de ouvido</option><option value="folder">Pasta de código</option><option value="spark">Brilhos</option><option value="wrench">Ferramentas</option><option value="globe">Globo</option><option value="phone">Smartphone</option><option value="monitor">Computador</option><option value="database">Banco de dados</option><option value="shield">Segurança</option><option value="palette">Design</option><option value="music">Música</option><option value="book">Livro</option><option value="bot">Robô</option><option value="rocket">Foguete</option><option value="cloud">Nuvem</option><option value="terminal">Terminal</option><option value="package">Pacote</option><option value="heart">Coração</option><option value="letter">Inicial</option></select></label>
         <label>Fundo<input id="cover-background" type="color" value="#31154f"></label>
         <label>Destaque<input id="cover-accent" type="color" value="#c65dff"></label>
       </div>
@@ -94,6 +94,24 @@
       <label class="cover-source-label" for="cover-source">Editar SVG (salva ao sair do campo)</label>
       <textarea id="cover-source" spellcheck="false" rows="7" aria-label="Código SVG da capa"></textarea>
       <p id="cover-status" class="cover-status" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
+  <dialog id="tags-dialog" class="tags-dialog" aria-labelledby="tags-title">
+    <div class="tags-dialog-body">
+      <div class="modal-heading"><div><p class="section-kicker">ORGANIZAÇÃO VISUAL</p><h2 id="tags-title">Tags do projeto</h2></div><button id="tags-close" type="button" class="button button-ghost">Fechar</button></div>
+      <p class="modal-help">Aplique tags a projetos públicos. Cada tag usa uma topic própria no GitHub; nome e cor são compartilhados no portfólio. Marcar, desmarcar e editar salva automaticamente.</p>
+      <div id="tags-list" class="tags-list"></div><p id="tags-empty" class="modal-help">Nenhuma tag cadastrada ainda.</p>
+      <div class="new-tag"><label>Nova tag<input id="new-tag-name" type="text" maxlength="48" placeholder="Ex.: Em desenvolvimento"></label><label>Cor<input id="new-tag-color" type="color" value="#9c88ff"></label><button id="create-tag" class="button button-primary" type="button">Criar e aplicar tag</button></div>
+      <p id="tags-status" class="cover-status" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
+  <dialog id="homepage-dialog" class="homepage-dialog" aria-labelledby="homepage-title">
+    <div class="homepage-dialog-body">
+      <div class="modal-heading"><div><p class="section-kicker">LINK EXTERNO</p><h2 id="homepage-title">Site do projeto</h2></div><button id="homepage-close" type="button" class="button button-ghost">Fechar</button></div>
+      <p class="modal-help">Este campo edita o mesmo <strong>Website</strong> do repositório no GitHub. O portfólio usa esse endereço quando preenchido; sem ele, usa o link para o repositório.</p>
+      <label class="homepage-label" for="homepage-input">Endereço completo (salva ao sair do campo)</label>
+      <input id="homepage-input" type="url" maxlength="2048" placeholder="https://meu-projeto.com" autocomplete="url" spellcheck="false">
+      <p id="homepage-status" class="cover-status" role="status" aria-live="polite"></p>
     </div>
   </dialog>
   <dialog id="delete-dialog" class="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-warning">

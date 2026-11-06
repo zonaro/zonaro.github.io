@@ -62,8 +62,10 @@ Execute `./scripts/portfolio-dashboard.sh` no checkout deste repositório. O pai
 - Busca e filtros por visibilidade e categoria; contadores de destaques e catálogo.
 - Classificação entre **Oculto**, **Principal**, **Secundário** e **Catálogo**, salva automaticamente ao trocar o select. Não existe botão Salvar.
 - Descrição curta editável e salva automaticamente ao sair do campo; o painel verifica se outro usuário não alterou o conteúdo entretanto.
-- Em ambos os casos, o painel preserva as topics não relacionadas ao portfólio e recusa sobrescrever alterações concorrentes.
-- **Capa SVG:** editor local com três estilos, símbolos, cores, visualização, upload `.svg` (até 100 KB) e edição direta do SVG. Mudanças são gravadas em `assets/portfolio-covers/<slug>.svg` automaticamente; o upload rejeita scripts, imagens externas e recursos ativos. Caso não haja capa personalizada, o gerador cria um SVG determinístico em `assets/generated/covers/`.
+- **Tags coloridas:** em projetos públicos, o botão **Tags** permite criar, aplicar e desmarcar tags como *Em desenvolvimento* e *Comercial*, além de editar seu nome e sua cor. Cada associação é armazenada como topic `portfolio-label-<slug>` no GitHub; cores e nomes ficam em `scripts/portfolio_labels.json`. Tudo salva automaticamente, sem botão Salvar. O arquivo não contém associações a repositórios ocultos.
+- **Site do projeto:** o botão **Site do projeto** edita o campo *Website* nativo do GitHub, com salvamento ao sair do campo. Quando presente, é o link externo principal no portfólio; caso contrário, o link externo aponta ao repositório. Páginas internas de detalhes continuam disponíveis. Por privacidade, tags e site são editáveis apenas para repositórios públicos.
+- O painel preserva as topics não relacionadas às funções editadas e recusa sobrescrever alterações concorrentes.
+- **Capa SVG:** editor local com três estilos, 20 símbolos vetoriais monocromáticos (além da inicial), cores, visualização, upload `.svg` (até 100 KB) e edição direta do SVG. Mudanças são gravadas em `assets/portfolio-covers/<slug>.svg` automaticamente; o upload rejeita scripts, imagens externas e recursos ativos. Caso não haja capa personalizada, o gerador cria um SVG determinístico em `assets/generated/covers/`.
 - Capas criadas para projetos **ocultos** permanecem locais e não são adicionadas ao Git na publicação. Quando um projeto já publicado for ocultado, a capa deixa de fazer parte da versão atual do site (embora commits antigos possam continuar acessíveis no histórico do Git).
 - **Prioridade de imagem:** Social Preview personalizada de repositórios públicos → capa SVG personalizada no portfólio → SVG automático. Para privados, o gerador nunca consulta imagem no GitHub; a arte local é gerada apenas a partir do nome autorizado.
 - **Social Preview do GitHub:** o botão de edição abre as configurações do repositório em uma nova aba. O GitHub não oferece API pública de upload dessa imagem; o upload da Social Preview é manual no GitHub.
@@ -80,6 +82,7 @@ Para habilitar a exclusão no GitHub CLI, pode ser necessário executar `gh auth
 - `index.html`: regiões de destaques e catálogo identificadas por comentários `PORTFOLIO`.
 - `projects/<nome>/index.html`: páginas individuais estáticas; para privados, apenas título e descrição.
 - `assets/generated/projects.json`, `assets/generated/covers/` e `assets/portfolio-covers/`: dados, imagens geradas e SVGs personalizados versionados.
+- `scripts/portfolio_labels.json`: definições públicas de tags (nome e cor, sem dados de repositórios); alterações entram no commit ao publicar.
 - `sitemap.xml`, `llms.txt` e `profile.json`: atualizados com os projetos incluídos.
 
 O gerador remove páginas e imagens geradas de projetos que deixaram de ser elegíveis. O código-fonte do portfólio, a página de beatbox e os demais assets existentes são preservados.

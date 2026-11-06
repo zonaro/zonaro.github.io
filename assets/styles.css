@@ -163,6 +163,9 @@ h2{font-size:clamp(40px,4.2vw,72px);line-height:1.08;letter-spacing:-.06em;max-w
 .card-content p{color:#b4a7b7;font-size:14px;line-height:1.68;margin-bottom:24px;flex:1}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chips span,.music-tag{display:inline-block;border:1px solid rgba(255,255,255,.14);border-radius:30px;padding:6px 10px;font:700 10px var(--font-display);color:#c6b8c9}
+.chips .project-tag,.catalog-tags .project-tag{border:1px solid var(--tag-color);color:var(--tag-color);background:color-mix(in srgb,var(--tag-color) 12%,transparent);border-radius:25px;padding:5px 9px;font:700 10px var(--font-display);display:inline-flex;align-items:center}
+.project-links{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:17px}.project-links a{font:750 12px var(--font-display);color:var(--accent-bright);padding:7px 0}.project-links a:hover{text-decoration:underline;text-underline-offset:4px}
+.catalog-tags{display:flex;flex-wrap:wrap;gap:4px;padding:0 8px 12px}.project-detail-tags{margin:8px 0 22px}
 .catalog{margin-top:84px;border-top:1px solid var(--line);padding-top:48px}
 .catalog-heading{display:flex;justify-content:space-between;gap:50px;align-items:end;margin-bottom:28px}
 .catalog-heading h3{font-size:31px;letter-spacing:-.045em;margin-bottom:10px}

@@ -9,6 +9,9 @@
   let previewReady = false;
   let deleteTarget = null;
   let coverTarget = null;
+  let tagsTarget = null;
+  let homepageTarget = null;
+  let palette = {};
 
   const normalize = (value) => String(value ?? "").normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
@@ -31,6 +34,11 @@
     $("notice").hidden = !message;
     $("notice").classList.toggle("error", error);
     $("notice").textContent = message || "";
+  }
+
+  function invalidatePreview() {
+    previewReady = false;
+    $("publish-note").hidden = true;
   }
 
   function counts() {
@@ -68,6 +76,16 @@
     desc.disabled = busy;
     desc.addEventListener("change", () => saveDescription(repo, desc.value));
     projectCell.append(title, desc, make("small", "field-hint", "Descrição salva ao sair do campo"));
+    if (repo.labels?.length) {
+      const tags = make("div", "repo-tags");
+      for (const slug of repo.labels) {
+        if (!palette[slug]) continue;
+        const chip = make("span", "repo-tag", palette[slug].name);
+        chip.style.setProperty("--tag-color", palette[slug].color);
+        tags.append(chip);
+      }
+      projectCell.append(tags);
+    }
 
     const privacyCell = make("td");
     privacyCell.append(make("span", "visibility-tag" + (repo.private ? " private" : ""), repo.private ? "Privado" : "Público"));
@@ -104,6 +122,17 @@
     social.rel = "noopener noreferrer";
     social.title = "O upload da Social Preview é feito nas configurações do GitHub";
     actions.append(cover, social);
+    if (!repo.private) {
+      const tagButton = make("button", "row-action", "Tags");
+      tagButton.type = "button";
+      tagButton.disabled = busy;
+      tagButton.addEventListener("click", () => openTags(repo));
+      const website = make("button", "row-action", "Site do projeto");
+      website.type = "button";
+      website.disabled = busy;
+      website.addEventListener("click", () => openHomepage(repo));
+      actions.prepend(tagButton, website);
+    }
     if (repo.name.toLowerCase() === "zonaro.github.io") {
       actions.append(make("span", "protected-label", "Exclusão protegida"));
     } else {
@@ -124,7 +153,8 @@
     const privacy = $("visibility-filter").value;
     const category = $("category-filter").value;
     const filtered = repos.filter((repo) =>
-      (!query || normalize(repo.name + " " + repo.description).includes(query)) &&
+      (!query || normalize(repo.name + " " + repo.description + " " +
+        (repo.labels || []).map((slug) => palette[slug]?.name || "").join(" ")).includes(query)) &&
       (privacy === "all" || (privacy === "private") === repo.private) &&
       (category === "all" || repo.category === category));
     $("repo-rows").replaceChildren(...filtered.map(renderRow));
@@ -143,6 +173,7 @@
     try {
       const data = await api("/api/repos");
       repos = data.repositories;
+      palette = data.labels || {};
       previewReady = false;
       $("publish-note").hidden = true;
     } catch (error) { notice(error.message, true); }
@@ -179,6 +210,137 @@
     updateField("/api/description", repo,
       {name: repo.name, description, expected_description: repo.description},
       (result) => { repo.description = result.description; }, "descrição salva automaticamente no GitHub.");
+  }
+
+  function tagsStatus(message, error = false) {
+    $("tags-status").textContent = message;
+    $("tags-status").classList.toggle("error", error);
+  }
+
+  function renderTags() {
+    if (!tagsTarget) return;
+    const box = $("tags-list");
+    box.replaceChildren();
+    for (const [slug, label] of Object.entries(palette).sort((a, b) => a[1].name.localeCompare(b[1].name, "pt-BR"))) {
+      const item = make("div", "tag-editor-item");
+      const check = make("input");
+      check.type = "checkbox";
+      check.checked = tagsTarget.labels.includes(slug);
+      check.setAttribute("aria-label", `Aplicar ${label.name} em ${tagsTarget.name}`);
+      check.addEventListener("change", () => assignTags(tagsTarget, slug, check.checked));
+      const name = make("input", "tag-name-input");
+      name.type = "text";
+      name.maxLength = 48;
+      name.value = label.name;
+      name.setAttribute("aria-label", `Nome da tag ${label.name}`);
+      name.addEventListener("change", () => editTag(slug, name.value, color.value));
+      const color = make("input", "tag-color-input");
+      color.type = "color";
+      color.value = label.color;
+      color.setAttribute("aria-label", `Cor da tag ${label.name}`);
+      color.addEventListener("change", () => editTag(slug, name.value, color.value));
+      item.append(check, name, color);
+      box.append(item);
+    }
+    $("tags-empty").hidden = Object.keys(palette).length > 0;
+  }
+
+  function openTags(repo) {
+    if (busy || repo.private) return;
+    tagsTarget = repo;
+    $("tags-title").textContent = `Tags · ${repo.name}`;
+    tagsStatus("Marque para aplicar. Alterar nome ou cor atualiza a tag em todos os projetos.");
+    renderTags();
+    $("tags-dialog").showModal();
+  }
+
+  async function assignTags(repo, slug, enabled) {
+    if (busy) return;
+    const selected = new Set(repo.labels || []);
+    if (enabled) selected.add(slug); else selected.delete(slug);
+    busy = true;
+    try {
+      const result = await api("/api/assign-labels", {name: repo.name,
+        labels: [...selected], expected_topics: repo.topics});
+      repo.topics = result.topics;
+      repo.labels = result.labels;
+      invalidatePreview();
+      tagsStatus("Tags salvas automaticamente nas topics do GitHub.");
+    } catch (error) { tagsStatus(error.message, true); }
+    finally { busy = false; render(); renderTags(); }
+  }
+
+  async function editTag(slug, name, color) {
+    if (busy) return;
+    busy = true;
+    try {
+      const result = await api("/api/labels", {slug, name, color, expected: palette[slug]});
+      palette = result.labels;
+      invalidatePreview();
+      tagsStatus("Definição da tag salva localmente. Publique o portfólio para atualizar as cores no site.");
+    } catch (error) { tagsStatus(error.message, true); }
+    finally { busy = false; render(); renderTags(); }
+  }
+
+  async function createTag() {
+    if (busy || !tagsTarget) return;
+    const name = $("new-tag-name").value.trim();
+    const color = $("new-tag-color").value;
+    if (!name) return tagsStatus("Informe o nome da tag.", true);
+    busy = true;
+    try {
+      const result = await api("/api/labels", {name, color});
+      palette = result.labels;
+      invalidatePreview();
+      const repo = tagsTarget;
+      const assigned = await api("/api/assign-labels", {name: repo.name,
+        labels: [...repo.labels, result.slug], expected_topics: repo.topics});
+      repo.topics = assigned.topics;
+      repo.labels = assigned.labels;
+      $("new-tag-name").value = "";
+      tagsStatus(`Tag ${name} criada e aplicada. Alterações salvas automaticamente.`);
+    } catch (error) { tagsStatus(error.message, true); }
+    finally { busy = false; render(); renderTags(); }
+  }
+
+  function homepageStatus(message, error = false) {
+    $("homepage-status").textContent = message;
+    $("homepage-status").classList.toggle("error", error);
+  }
+
+  async function openHomepage(repo) {
+    if (busy || repo.private) return;
+    homepageTarget = repo;
+    $("homepage-title").textContent = `Site do projeto · ${repo.name}`;
+    $("homepage-input").value = "";
+    $("homepage-input").disabled = true;
+    homepageStatus("Consultando site atual no GitHub...");
+    $("homepage-dialog").showModal();
+    try {
+      const data = await api(`/api/homepage?name=${encodeURIComponent(repo.name)}`);
+      if (homepageTarget !== repo) return;
+      repo.homepage = data.homepage;
+      $("homepage-input").value = data.homepage;
+      $("homepage-input").disabled = false;
+      homepageStatus("Salva ao sair do campo. Vazio usa o link do repositório como alternativa.");
+    } catch (error) { homepageStatus(error.message, true); }
+  }
+
+  async function saveHomepage() {
+    if (busy || !homepageTarget) return;
+    const repo = homepageTarget;
+    const newValue = $("homepage-input").value.trim();
+    if (newValue === repo.homepage) return;
+    busy = true;
+    $("homepage-input").disabled = true;
+    try {
+      const data = await api("/api/homepage", {name: repo.name,
+        homepage: newValue, expected_homepage: repo.homepage});
+      repo.homepage = data.homepage;
+      invalidatePreview();
+      homepageStatus("Link salvo automaticamente no GitHub. Gere uma prévia para atualizar o portfólio.");
+    } catch (error) { homepageStatus(error.message, true); }
+    finally { busy = false; $("homepage-input").disabled = false; render(); }
   }
 
   function openDelete(repo) {
@@ -318,5 +480,14 @@
     else saveCover({mode: "svg", svg: await file.text()});
     event.target.value = "";
   });
+  $("tags-close").addEventListener("click", () => $("tags-dialog").close());
+  $("tags-dialog").addEventListener("close", () => { tagsTarget = null; });
+  $("create-tag").addEventListener("click", createTag);
+  $("new-tag-name").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); createTag(); }
+  });
+  $("homepage-close").addEventListener("click", () => $("homepage-dialog").close());
+  $("homepage-dialog").addEventListener("close", () => { homepageTarget = null; });
+  $("homepage-input").addEventListener("change", saveHomepage);
   loadRepos();
 })();

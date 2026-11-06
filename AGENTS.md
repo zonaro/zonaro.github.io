@@ -5,6 +5,8 @@
 - A curadoria de projetos vem exclusivamente das repository topics `portfolio-primary`, `portfolio-secondary`, `portfolio-catalog`.
 - Nunca inclua repositórios sem exatamente uma dessas topics. Não reaproveite a lista antiga de 45 itens como fallback.
 - Para repositórios privados, o gerador só pode ler e publicar **nome e descrição**. `isPrivate` e topics são consultados apenas para decidir a inclusão. **Jamais chamar endpoints de README, conteúdo, código, Social Preview ou informações extras para privados.**
+- As tags de apresentação (`portfolio-label-<slug>`) são atribuídas via topics somente aos públicos. `scripts/portfolio_labels.json` deve conter apenas nome/cor das tags, sem associações com repositórios privados/ocultos. Nunca publicar tags de repositórios privados.
+- O link `homepage` pode ser consultado e editado somente para repositórios confirmados públicos; priorizá-lo como link externo no portfólio, com GitHub como fallback e sem eliminar páginas de detalhe.
 - Mantenha arquivos gerados em `projects/` e `assets/generated/`; o script nunca deve precisar de credenciais no browser ou no GitHub Pages.
 - Mudanças no gerador exigem testes offline: `python3 -m unittest discover -s tests -v`.
 - Nunca execute `--publish` sem revisar os projetos selecionados e os dados privados. Não publique automaticamente a primeira migração.

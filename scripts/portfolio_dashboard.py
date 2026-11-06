@@ -21,11 +21,15 @@ import webbrowser
 
 try:
     from scripts.portfolio_art import default_colors, make_cover_svg, sanitize_svg
+    from scripts.portfolio_labels import (TOPIC_PREFIX, applied_labels, label_slug,
+                                          load_labels, write_labels, HEX_PATTERN)
 except ModuleNotFoundError as exc:
     if exc.name != "scripts":
         raise
     # Direct execution: python3 scripts/portfolio_dashboard.py
     from portfolio_art import default_colors, make_cover_svg, sanitize_svg
+    from portfolio_labels import (TOPIC_PREFIX, applied_labels, label_slug,
+                                  load_labels, write_labels, HEX_PATTERN)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,6 +90,10 @@ def repo_list() -> list[dict]:
         raise ApiError(502, "Resposta inválida ao listar repositórios") from exc
     if not isinstance(raw, list):
         raise ApiError(502, "Lista de repositórios inválida")
+    try:
+        palette = load_labels(ROOT)
+    except ValueError as exc:
+        raise ApiError(500, str(exc)) from exc
     result = []
     for repo in raw:
         name = repo.get("name", "")
@@ -98,9 +106,107 @@ def repo_list() -> list[dict]:
             "private": bool(repo.get("isPrivate")),
             "topics": topics,
             "category": category_of(topics),
+            "labels": [label["slug"] for label in applied_labels(topics, palette)],
             "url": f"https://github.com/{OWNER}/{name}",
         })
     return sorted(result, key=lambda repo: repo["name"].casefold())
+
+
+def upsert_label(name: str, color: str, slug: str | None, expected: object) -> dict:
+    if not isinstance(color, str) or not HEX_PATTERN.fullmatch(color):
+        raise ApiError(400, "Cor inválida. Use #RRGGBB")
+    try:
+        palette = load_labels(ROOT)
+        if slug is None:
+            slug = label_slug(name)
+            if slug in palette:
+                raise ApiError(409, "Já existe uma tag com esse identificador")
+            if expected is not None:
+                raise ApiError(400, "Conferência inválida para tag nova")
+        else:
+            if slug not in palette or palette[slug] != expected:
+                raise ApiError(409, "A tag mudou desde a última consulta. Atualize a lista")
+            label_slug(name)  # Validate the new display name without renaming its stable topic.
+        if len(palette) >= 100 and slug not in palette:
+            raise ApiError(400, "Limite de 100 tags atingido")
+        palette[slug] = {"name": name.strip(), "color": color.lower()}
+        write_labels(ROOT, palette)
+    except ValueError as exc:
+        raise ApiError(400, str(exc)) from exc
+    return {"slug": slug, "label": palette[slug], "labels": palette}
+
+
+def update_repo_labels(name: str, slugs: object, expected_topics: object) -> dict:
+    if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
+        raise ApiError(400, "Nome do repositório inválido")
+    if (not isinstance(slugs, list) or len(slugs) > 20 or not all(isinstance(s, str) for s in slugs)
+            or len(slugs) != len(set(slugs))):
+        raise ApiError(400, "Seleção de tags inválida")
+    if not isinstance(expected_topics, list) or any(not isinstance(t, str) for t in expected_topics):
+        raise ApiError(400, "Topics de origem inválidas")
+    try:
+        palette = load_labels(ROOT)
+    except ValueError as exc:
+        raise ApiError(500, str(exc)) from exc
+    if any(slug not in palette for slug in slugs):
+        raise ApiError(400, "Tag inexistente. Atualize a lista")
+    repository = next((r for r in repo_list() if r["name"] == name), None)
+    if repository is None or repository["private"]:
+        raise ApiError(403, "Tags públicas só podem ser aplicadas a repositórios públicos")
+    endpoint = f"repos/{OWNER}/{name}/topics"
+    try:
+        current = sorted(json.loads(gh("api", endpoint))["names"])
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise ApiError(502, "Não foi possível conferir as topics") from exc
+    if current != sorted(set(expected_topics)):
+        raise ApiError(409, "As topics mudaram no GitHub. Atualize antes de salvar")
+    managed = {TOPIC_PREFIX + s for s in palette}
+    updated = sorted([topic for topic in current if topic not in managed]
+                     + [TOPIC_PREFIX + s for s in slugs])
+    if len(updated) > 20:
+        raise ApiError(400, "GitHub permite até 20 topics por repositório")
+    if updated != current:
+        try:
+            response = json.loads(gh("api", "--method", "PUT", endpoint, "--input", "-",
+                                     input_text=json.dumps({"names": updated})))
+        except json.JSONDecodeError as exc:
+            raise ApiError(502, "Confirmação inválida do GitHub") from exc
+        if sorted(response.get("names", [])) != updated:
+            raise ApiError(502, "O GitHub não confirmou as tags")
+    return {"name": name, "topics": updated, "labels": sorted(slugs)}
+
+
+def homepage_info(name: str) -> dict:
+    if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
+        raise ApiError(400, "Nome de repositório inválido")
+    # Privacy boundary: never request extended metadata for a private repo.
+    repository = next((r for r in repo_list() if r["name"] == name), None)
+    if repository is None or repository["private"]:
+        raise ApiError(403, "Site do projeto editável apenas para repositórios públicos")
+    try:
+        current = json.loads(gh("api", f"repos/{OWNER}/{name}"))
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ApiError(502, "Não foi possível consultar o site do projeto") from exc
+    if current.get("full_name") != f"{OWNER}/{name}" or current.get("private") is not False:
+        raise ApiError(409, "Visibilidade ou identidade mudou. Atualize a lista")
+    return {"name": name, "homepage": current.get("homepage") or ""}
+
+
+def update_homepage(name: str, homepage: str, expected_homepage: str) -> dict:
+    if not isinstance(homepage, str) or not isinstance(expected_homepage, str) or len(homepage) > 2048:
+        raise ApiError(400, "Endereço inválido")
+    homepage = homepage.strip()
+    if homepage:
+        parsed = urlsplit(homepage)
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username or parsed.password or any(c.isspace() for c in homepage)):
+            raise ApiError(400, "Use uma URL completa http:// ou https://, sem credenciais")
+    current = homepage_info(name)
+    if current["homepage"] != expected_homepage:
+        raise ApiError(409, "O site do projeto mudou no GitHub. Atualize antes de editar")
+    if homepage != expected_homepage:
+        gh("repo", "edit", f"{OWNER}/{name}", "--homepage", homepage)
+    return {"name": name, "homepage": homepage}
 
 
 def update_category(name: str, category: str, expected_topics: list[str]) -> dict:
@@ -271,7 +377,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 data = data.replace("__DASHBOARD_TOKEN__", self.server.token)
             content_type = "text/html" if path == "/" else "text/css" if path.endswith(".css") else "text/javascript"
             return self._send(200, data.encode("utf-8"), content_type + "; charset=utf-8")
-        if path not in {"/api/repos", "/api/cover"}:
+        if path not in {"/api/repos", "/api/cover", "/api/homepage"}:
             return self._json(404, {"error": "Rota inexistente"})
         if not self._authenticated():
             return self._json(403, {"error": "Sessão inválida"})
@@ -279,7 +385,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path == "/api/cover":
                 name = parse_qs(urlsplit(self.path).query).get("name", [""])[0]
                 return self._json(200, current_cover(name))
-            return self._json(200, {"repositories": repo_list()})
+            if path == "/api/homepage":
+                name = parse_qs(urlsplit(self.path).query).get("name", [""])[0]
+                return self._json(200, homepage_info(name))
+            return self._json(200, {"repositories": repo_list(), "labels": load_labels(ROOT)})
         except ApiError as exc:
             return self._json(exc.status, {"error": str(exc)})
 
@@ -290,7 +399,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if origin not in {f"http://127.0.0.1:{self.server.server_port}", f"http://localhost:{self.server.server_port}"}:
             return self._json(403, {"error": "Origem não permitida"})
         path = urlsplit(self.path).path
-        if path not in {"/api/classify", "/api/description", "/api/cover", "/api/delete", "/api/preview", "/api/publish"}:
+        if path not in {"/api/classify", "/api/description", "/api/cover", "/api/delete", "/api/labels", "/api/assign-labels", "/api/homepage", "/api/preview", "/api/publish"}:
             return self._json(404, {"error": "Rota inexistente"})
         if self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
             return self._json(415, {"error": "Use application/json"})
@@ -311,6 +420,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if path == "/api/description":
                     result = update_description(body.get("name", ""), body.get("description"),
                                                 body.get("expected_description"))
+                    self.server.preview_ready = False
+                    return self._json(200, result)
+                if path == "/api/labels":
+                    result = upsert_label(body.get("name"), body.get("color"),
+                                          body.get("slug"), body.get("expected"))
+                    self.server.preview_ready = False
+                    return self._json(200, result)
+                if path == "/api/assign-labels":
+                    result = update_repo_labels(body.get("name"), body.get("labels"),
+                                                body.get("expected_topics"))
+                    self.server.preview_ready = False
+                    return self._json(200, result)
+                if path == "/api/homepage":
+                    result = update_homepage(body.get("name"), body.get("homepage"),
+                                             body.get("expected_homepage"))
                     self.server.preview_ready = False
                     return self._json(200, result)
                 if path == "/api/cover":

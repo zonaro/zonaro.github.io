@@ -138,6 +138,73 @@ class DashboardTests(unittest.TestCase):
                     '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://bad.example/a"/></svg>'})
             self.assertIn("<svg", dashboard.current_cover("Example")["svg"])
 
+    def test_label_creation_recolor_and_assignment_preserve_unrelated_topics(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(dashboard, "ROOT", Path(tmp)):
+            created = dashboard.upsert_label("Em desenvolvimento", "#Aa44CC", None, None)
+            self.assertEqual(created["slug"], "em-desenvolvimento")
+            self.assertEqual(created["label"]["color"], "#aa44cc")
+            changed = dashboard.upsert_label("Em andamento", "#0dca9f", created["slug"], created["label"])
+            self.assertEqual(changed["label"]["name"], "Em andamento")
+            self.assertEqual(changed["slug"], created["slug"])
+            with self.assertRaises(dashboard.ApiError) as stale:
+                dashboard.upsert_label("Outro", "#00ff00", created["slug"], created["label"])
+            self.assertEqual(stale.exception.status, 409)
+            topics = ["flutter", "portfolio-primary", "linux"]
+            calls = []
+
+            def fake_gh(*args, input_text=None):
+                calls.append((args, input_text))
+                if args[:2] == ("api", "repos/zonaro/Public/topics"):
+                    return json.dumps({"names": topics})
+                if args[:3] == ("api", "--method", "PUT"):
+                    return input_text
+                self.fail(f"Unexpected gh command {args}")
+
+            with patch.object(dashboard, "repo_list", return_value=[{"name": "Public", "private": False}]), \
+                 patch.object(dashboard, "gh", side_effect=fake_gh):
+                result = dashboard.update_repo_labels("Public", [created["slug"]], topics)
+                self.assertEqual(result["topics"], sorted(topics + ["portfolio-label-em-desenvolvimento"]))
+                self.assertEqual(len(calls), 2)
+                with self.assertRaises(dashboard.ApiError) as conflict:
+                    dashboard.update_repo_labels("Public", [created["slug"]], ["old-topic"])
+                self.assertEqual(conflict.exception.status, 409)
+            with patch.object(dashboard, "repo_list", return_value=[{"name": "Private", "private": True}]), \
+                 patch.object(dashboard, "gh") as never_read:
+                with self.assertRaises(dashboard.ApiError) as forbidden:
+                    dashboard.update_repo_labels("Private", [created["slug"]], topics)
+                self.assertEqual(forbidden.exception.status, 403)
+                never_read.assert_not_called()
+
+    def test_homepage_saves_public_only_and_rejects_unsafe_urls(self):
+        calls = []
+
+        def fake_gh(*args):
+            calls.append(args)
+            if args[:2] == ("api", "repos/zonaro/Public"):
+                return json.dumps({"full_name": "zonaro/Public", "private": False,
+                                   "homepage": "https://before.example"})
+            if args[:2] == ("repo", "edit"):
+                return ""
+            self.fail(f"Unexpected gh command {args}")
+
+        with patch.object(dashboard, "repo_list", return_value=[{"name": "Public", "private": False}]), \
+             patch.object(dashboard, "gh", side_effect=fake_gh):
+            saved = dashboard.update_homepage("Public", "https://new.example/app", "https://before.example")
+            self.assertEqual(saved["homepage"], "https://new.example/app")
+            self.assertIn(("repo", "edit", "zonaro/Public", "--homepage", "https://new.example/app"), calls)
+            with self.assertRaises(dashboard.ApiError) as stale:
+                dashboard.update_homepage("Public", "", "outdated")
+            self.assertEqual(stale.exception.status, 409)
+            with self.assertRaises(dashboard.ApiError) as invalid:
+                dashboard.update_homepage("Public", "javascript:alert(1)", "https://before.example")
+            self.assertEqual(invalid.exception.status, 400)
+        with patch.object(dashboard, "repo_list", return_value=[{"name": "Private", "private": True}]), \
+             patch.object(dashboard, "gh") as never_read:
+            with self.assertRaises(dashboard.ApiError) as forbidden:
+                dashboard.homepage_info("Private")
+            self.assertEqual(forbidden.exception.status, 403)
+            never_read.assert_not_called()
+
     def test_http_requires_token_and_origin(self):
         from http.server import ThreadingHTTPServer
 
@@ -198,6 +265,26 @@ class DashboardTests(unittest.TestCase):
                                      data={"name": "Example", "mode": "preset"})
                 self.assertEqual(code, 200)
                 self.assertIn('"custom": true', body)
+            with patch.object(dashboard, "upsert_label", return_value={"slug": "commercial", "labels": {"commercial": {"name": "Comercial", "color": "#ff1100"}}}):
+                code, body = request("/api/labels", method="POST", token=server.token,
+                                     origin=base, data={"name": "Comercial", "color": "#ff1100"})
+                self.assertEqual(code, 200)
+                self.assertIn("commercial", body)
+            with patch.object(dashboard, "update_repo_labels", return_value={"name": "Example", "labels": ["commercial"], "topics": []}):
+                code, body = request("/api/assign-labels", method="POST", token=server.token,
+                                     origin=base, data={"name": "Example", "labels": ["commercial"], "expected_topics": []})
+                self.assertEqual(code, 200)
+                self.assertIn("commercial", body)
+            with patch.object(dashboard, "homepage_info", return_value={"name": "Example", "homepage": "https://example.com"}):
+                code, body = request("/api/homepage?name=Example", token=server.token)
+                self.assertEqual(code, 200)
+                self.assertIn("https://example.com", body)
+            with patch.object(dashboard, "update_homepage", return_value={"name": "Example", "homepage": "https://example.com"}):
+                code, body = request("/api/homepage", method="POST", token=server.token,
+                                     origin=base, data={"name": "Example", "homepage": "https://example.com",
+                                                        "expected_homepage": ""})
+                self.assertEqual(code, 200)
+                self.assertIn("https://example.com", body)
             with patch.object(dashboard, "delete_repository", return_value={"deleted": "zonaro/Example"}) as mocked:
                 code, body = request("/api/delete", method="POST", token=server.token, origin=base,
                                      data={"name": "Example", "confirmation": "zonaro/Example",
