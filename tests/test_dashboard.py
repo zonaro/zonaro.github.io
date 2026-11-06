@@ -168,6 +168,11 @@ class DashboardTests(unittest.TestCase):
             code, body = request("/")
             self.assertEqual(code, 200)
             self.assertIn(server.token, body)
+            with urlopen(base + "/", timeout=5) as response:
+                policy = response.headers["Content-Security-Policy"]
+            self.assertIn("img-src 'self' data:", policy)
+            self.assertIn("script-src 'self'", policy)
+            self.assertNotIn("script-src 'self' data:", policy)
             self.assertEqual(request("/api/repos")[0], 403)
             self.assertEqual(request("/api/cover?name=Example")[0], 403)
             self.assertEqual(request("/api/classify", method="POST", token=server.token,
