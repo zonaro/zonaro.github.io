@@ -4,6 +4,8 @@ import importlib.util
 import json
 from pathlib import Path
 import secrets
+import subprocess
+import sys
 import threading
 import tempfile
 import unittest
@@ -19,6 +21,14 @@ spec.loader.exec_module(dashboard)
 
 
 class DashboardTests(unittest.TestCase):
+    def test_direct_script_entrypoints_import_art_module(self):
+        scripts = SCRIPT.parent
+        for name in ("portfolio_dashboard.py", "generate_portfolio.py"):
+            with self.subTest(script=name):
+                result = subprocess.run([sys.executable, str(scripts / name), "--help"],
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_list_reads_metadata_only(self):
         calls = []
 

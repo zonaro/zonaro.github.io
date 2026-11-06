@@ -22,7 +22,13 @@ from urllib.parse import quote, urljoin, urlsplit
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 
-from scripts.portfolio_art import make_cover_svg
+try:
+    from scripts.portfolio_art import make_cover_svg
+except ModuleNotFoundError as exc:
+    if exc.name != "scripts":
+        raise
+    # Direct execution: python3 scripts/generate_portfolio.py
+    from portfolio_art import make_cover_svg
 
 
 ROOT = Path(__file__).resolve().parents[1]

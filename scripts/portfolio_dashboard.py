@@ -19,7 +19,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 import webbrowser
 
-from scripts.portfolio_art import default_colors, make_cover_svg, sanitize_svg
+try:
+    from scripts.portfolio_art import default_colors, make_cover_svg, sanitize_svg
+except ModuleNotFoundError as exc:
+    if exc.name != "scripts":
+        raise
+    # Direct execution: python3 scripts/portfolio_dashboard.py
+    from portfolio_art import default_colors, make_cover_svg, sanitize_svg
 
 
 ROOT = Path(__file__).resolve().parents[1]
