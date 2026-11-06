@@ -10,4 +10,6 @@
 - Nunca execute `--publish` sem revisar os projetos selecionados e os dados privados. Não publique automaticamente a primeira migração.
 - `scripts/portfolio_dashboard.py` é uma API **exclusivamente local**. Não altere o bind de `127.0.0.1`, a validação de origem/token ou a política de não ler README de privados.
 - Ao editar topics pelo painel, preserve todas as topics que não pertençam ao conjunto de classificação, e recuse alterações concorrentes em vez de sobrescrever sem aviso.
+- A exclusão de repositórios no painel é destrutiva: exigir confirmação exata `zonaro/<repo>`, nova verificação de permissões/identidade e proteger `zonaro.github.io`. Nunca executar exclusão real durante os testes.
+- Capas SVG enviadas ou editadas precisam passar pelo sanitizador. Não permitir scripts, CSS, recursos externos ou links em SVG. Capas privadas são arte local criada apenas com o nome do projeto, nunca imagens obtidas do GitHub privado.
 - Leia `.agents/PORTFOLIO.md` antes de modificar o gerador ou o formato das páginas.

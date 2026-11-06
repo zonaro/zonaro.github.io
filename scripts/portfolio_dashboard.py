@@ -16,8 +16,10 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 import webbrowser
+
+from scripts.portfolio_art import default_colors, make_cover_svg, sanitize_svg
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -128,6 +130,102 @@ def update_category(name: str, category: str, expected_topics: list[str]) -> dic
     return {"name": name, "category": category, "topics": updated}
 
 
+def update_description(name: str, description: str, expected_description: str) -> dict:
+    if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
+        raise ApiError(400, "Nome de repositório inválido")
+    if (not isinstance(description, str) or len(description) > 350
+            or not isinstance(expected_description, str)):
+        raise ApiError(400, "Descrição inválida (máximo de 350 caracteres)")
+    full_name = f"{OWNER}/{name}"
+    try:
+        current = json.loads(gh("api", f"repos/{OWNER}/{name}"))
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ApiError(502, "Não foi possível conferir a descrição atual") from exc
+    if current.get("full_name") != full_name:
+        raise ApiError(409, "O repositório mudou. Atualize a lista")
+    if (current.get("description") or "") != expected_description:
+        raise ApiError(409, "A descrição mudou no GitHub. Atualize a lista antes de editar")
+    if description != expected_description:
+        gh("repo", "edit", full_name, "--description", description)
+    return {"name": name, "description": description}
+
+
+def delete_repository(name: str, confirmation: str, expected_topics: list[str], expected_private: bool) -> dict:
+    """Delete only the exact owned repository the user confirmed in the UI.
+
+    A fresh metadata request ensures the repository still matches the listing
+    that the user reviewed. No README or source content is requested.
+    """
+    if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
+        raise ApiError(400, "Nome de repositório inválido")
+    full_name = f"{OWNER}/{name}"
+    if name.casefold() == "zonaro.github.io":
+        raise ApiError(403, "O repositório deste portfólio está protegido contra exclusão pelo painel")
+    if confirmation != full_name:
+        raise ApiError(400, f"Digite exatamente {full_name} para confirmar a exclusão")
+    if (not isinstance(expected_topics, list)
+            or any(not isinstance(topic, str) for topic in expected_topics)
+            or not isinstance(expected_private, bool)):
+        raise ApiError(400, "Dados de conferência inválidos. Atualize a lista")
+
+    try:
+        current = json.loads(gh("api", f"repos/{OWNER}/{name}"))
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ApiError(502, "Não foi possível conferir o repositório antes da exclusão") from exc
+    if (current.get("full_name") != full_name
+            or current.get("owner", {}).get("login") != OWNER):
+        raise ApiError(409, "A identidade do repositório mudou. Atualize a lista")
+    if current.get("permissions", {}).get("admin") is not True:
+        raise ApiError(403, "Sua conta não possui permissão de administrador para excluir este repositório")
+    if (sorted(current.get("topics", [])) != sorted(set(expected_topics))
+            or current.get("private") is not expected_private):
+        raise ApiError(409, "Os dados do repositório mudaram. Atualize a lista antes de excluir")
+
+    gh("repo", "delete", full_name, "--yes")
+    return {"deleted": full_name}
+
+
+def cover_path(name: str) -> Path:
+    if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
+        raise ApiError(400, "Nome de repositório inválido")
+    return ROOT / "assets" / "portfolio-covers" / f"{name.lower()}.svg"
+
+
+def current_cover(name: str) -> dict:
+    path = cover_path(name)
+    if path.is_symlink():
+        raise ApiError(400, "Capa vinculada a arquivo externo não é permitida")
+    custom = path.exists()
+    try:
+        svg = sanitize_svg(path.read_text(encoding="utf-8") if custom else make_cover_svg(name))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ApiError(400, f"Não foi possível abrir a capa: {exc}") from exc
+    background, accent = default_colors(name)
+    return {"name": name, "svg": svg, "custom": custom,
+            "default_background": background, "default_accent": accent}
+
+
+def update_cover(name: str, body: dict) -> dict:
+    path = cover_path(name)
+    if path.is_symlink():
+        raise ApiError(400, "Capa vinculada a arquivo externo não é permitida")
+    try:
+        if body.get("mode") == "preset":
+            svg = make_cover_svg(name, style=body.get("style", "orbits"),
+                                 icon=body.get("icon", "auto"),
+                                 background=body.get("background"), accent=body.get("accent"))
+        elif body.get("mode") == "svg":
+            svg = body.get("svg")
+        else:
+            raise ValueError("Modo de capa inválido")
+        svg = sanitize_svg(svg)
+    except ValueError as exc:
+        raise ApiError(400, str(exc)) from exc
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(svg, encoding="utf-8")
+    return {"name": name, "svg": svg, "custom": True}
+
+
 class DashboardHandler(BaseHTTPRequestHandler):
     server_version = "ZonaroDashboard/1"
 
@@ -165,11 +263,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 data = data.replace("__DASHBOARD_TOKEN__", self.server.token)
             content_type = "text/html" if path == "/" else "text/css" if path.endswith(".css") else "text/javascript"
             return self._send(200, data.encode("utf-8"), content_type + "; charset=utf-8")
-        if path != "/api/repos":
+        if path not in {"/api/repos", "/api/cover"}:
             return self._json(404, {"error": "Rota inexistente"})
         if not self._authenticated():
             return self._json(403, {"error": "Sessão inválida"})
         try:
+            if path == "/api/cover":
+                name = parse_qs(urlsplit(self.path).query).get("name", [""])[0]
+                return self._json(200, current_cover(name))
             return self._json(200, {"repositories": repo_list()})
         except ApiError as exc:
             return self._json(exc.status, {"error": str(exc)})
@@ -181,13 +282,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if origin not in {f"http://127.0.0.1:{self.server.server_port}", f"http://localhost:{self.server.server_port}"}:
             return self._json(403, {"error": "Origem não permitida"})
         path = urlsplit(self.path).path
-        if path not in {"/api/classify", "/api/preview", "/api/publish"}:
+        if path not in {"/api/classify", "/api/description", "/api/cover", "/api/delete", "/api/preview", "/api/publish"}:
             return self._json(404, {"error": "Rota inexistente"})
         if self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
             return self._json(415, {"error": "Use application/json"})
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            if size < 2 or size > 8192:
+            if size < 2 or size > (110_000 if path == "/api/cover" else 8192):
                 raise ValueError("Tamanho inválido")
             body = json.loads(self.rfile.read(size))
             if not isinstance(body, dict):
@@ -197,6 +298,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
             try:
                 if path == "/api/classify":
                     result = update_category(body.get("name", ""), body.get("category", ""), body.get("expected_topics"))
+                    self.server.preview_ready = False
+                    return self._json(200, result)
+                if path == "/api/description":
+                    result = update_description(body.get("name", ""), body.get("description"),
+                                                body.get("expected_description"))
+                    self.server.preview_ready = False
+                    return self._json(200, result)
+                if path == "/api/cover":
+                    result = update_cover(body.get("name", ""), body)
+                    self.server.preview_ready = False
+                    return self._json(200, result)
+                if path == "/api/delete":
+                    result = delete_repository(body.get("name", ""), body.get("confirmation", ""),
+                                               body.get("expected_topics"), body.get("expected_private"))
                     self.server.preview_ready = False
                     return self._json(200, result)
                 if path == "/api/preview":

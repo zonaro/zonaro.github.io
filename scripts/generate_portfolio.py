@@ -22,6 +22,8 @@ from urllib.parse import quote, urljoin, urlsplit
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 
+from scripts.portfolio_art import make_cover_svg
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OWNER = "zonaro"
@@ -382,6 +384,19 @@ def write_if_changed(path: Path, content: str) -> None:
 
 
 def generate(projects: list[Project]) -> None:
+    # A public Social Preview takes precedence. Otherwise use a curated local
+    # SVG, or generate a deterministic cover from the public-facing name only.
+    # No private GitHub endpoint is consulted for these local illustrations.
+    for project in projects:
+        if project.image:
+            continue
+        custom = ROOT / "assets" / "portfolio-covers" / f"{project.slug}.svg"
+        if custom.is_file() and not custom.is_symlink():
+            project.image = f"/assets/portfolio-covers/{project.slug}.svg"
+        else:
+            fallback = ROOT / "assets" / "generated" / "covers" / f"{project.slug}.svg"
+            write_if_changed(fallback, make_cover_svg(project.name))
+            project.image = f"/assets/generated/covers/{project.slug}.svg"
     write_if_changed(ROOT / "index.html", generate_index(projects))
     directory = ROOT / "projects"
     expected: set[Path] = set()

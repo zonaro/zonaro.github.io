@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import secrets
 import threading
+import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -66,6 +67,67 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(dashboard.category_of(["portfolio-primary", "portfolio-catalog"]), "conflict")
         self.assertEqual(dashboard.category_of(["something-else"]), "hidden")
 
+    def test_description_auto_save_checks_for_stale_data(self):
+        calls = []
+
+        def fake_gh(*args):
+            calls.append(args)
+            if args[:2] == ("api", "repos/zonaro/Example"):
+                return json.dumps({"full_name": "zonaro/Example", "description": "Antes"})
+            if args[:2] == ("repo", "edit"):
+                return ""
+            self.fail(f"Unexpected command: {args}")
+
+        with patch.object(dashboard, "gh", side_effect=fake_gh):
+            result = dashboard.update_description("Example", "Depois", "Antes")
+            self.assertEqual(result["description"], "Depois")
+            self.assertEqual(calls[-1], ("repo", "edit", "zonaro/Example", "--description", "Depois"))
+            with self.assertRaises(dashboard.ApiError) as caught:
+                dashboard.update_description("Example", "Outro", "Desatualizado")
+        self.assertEqual(caught.exception.status, 409)
+        self.assertEqual(len(calls), 3)
+
+    def test_delete_requires_exact_confirmation_and_fresh_metadata(self):
+        current = {"full_name": "zonaro/Example", "owner": {"login": "zonaro"},
+                   "permissions": {"admin": True}, "topics": ["portfolio-catalog"], "private": True}
+        calls = []
+
+        def fake_gh(*args):
+            calls.append(args)
+            if args[:2] == ("api", "repos/zonaro/Example"):
+                return json.dumps(current)
+            if args[:2] == ("repo", "delete"):
+                return ""
+            self.fail(f"Unexpected command: {args}")
+
+        with patch.object(dashboard, "gh", side_effect=fake_gh):
+            with self.assertRaises(dashboard.ApiError):
+                dashboard.delete_repository("Example", "Example", ["portfolio-catalog"], True)
+            with self.assertRaises(dashboard.ApiError):
+                dashboard.delete_repository("zonaro.github.io", "zonaro/zonaro.github.io", [], False)
+            self.assertEqual(calls, [])
+            with self.assertRaises(dashboard.ApiError) as caught:
+                dashboard.delete_repository("Example", "zonaro/Example", ["portfolio-primary"], True)
+            self.assertEqual(caught.exception.status, 409)
+            self.assertNotIn(("repo", "delete", "zonaro/Example", "--yes"), calls)
+            self.assertEqual(dashboard.delete_repository("Example", "zonaro/Example", ["portfolio-catalog"], True),
+                             {"deleted": "zonaro/Example"})
+        self.assertEqual(calls[-1], ("repo", "delete", "zonaro/Example", "--yes"))
+
+    def test_cover_upload_is_sanitized_and_stored_locally(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(dashboard, "ROOT", Path(tmp)):
+            result = dashboard.update_cover("Example", {"mode": "preset", "style": "grid", "icon": "game"})
+            self.assertIn("<svg", result["svg"])
+            self.assertTrue((Path(tmp) / "assets/portfolio-covers/example.svg").exists())
+            self.assertTrue(dashboard.current_cover("Example")["custom"])
+            with self.assertRaises(dashboard.ApiError):
+                dashboard.update_cover("Example", {"mode": "svg", "svg":
+                    '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'})
+            with self.assertRaises(dashboard.ApiError):
+                dashboard.update_cover("Example", {"mode": "svg", "svg":
+                    '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://bad.example/a"/></svg>'})
+            self.assertIn("<svg", dashboard.current_cover("Example")["svg"])
+
     def test_http_requires_token_and_origin(self):
         from http.server import ThreadingHTTPServer
 
@@ -97,8 +159,12 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertIn(server.token, body)
             self.assertEqual(request("/api/repos")[0], 403)
+            self.assertEqual(request("/api/cover?name=Example")[0], 403)
             self.assertEqual(request("/api/classify", method="POST", token=server.token,
                                      data={"name": "a", "category": "primary", "expected_topics": []})[0], 403)
+            self.assertEqual(request("/api/delete", method="POST", token=server.token,
+                                     data={"name": "a", "confirmation": "zonaro/a", "expected_topics": [],
+                                           "expected_private": False})[0], 403)
             with patch.object(dashboard, "repo_list", return_value=[{"name": "Example"}]):
                 code, body = request("/api/repos", token=server.token)
             self.assertEqual(code, 200)
@@ -108,6 +174,22 @@ class DashboardTests(unittest.TestCase):
                                      origin=base, data={"name": "Example", "category": "primary", "expected_topics": []})
             self.assertEqual(code, 200)
             self.assertIn("portfolio-primary", body)
+            with patch.object(dashboard, "current_cover", return_value={"name": "Example", "svg": "<svg/>", "custom": False}):
+                code, body = request("/api/cover?name=Example", token=server.token)
+                self.assertEqual(code, 200)
+                self.assertIn("<svg/>", body)
+            with patch.object(dashboard, "update_cover", return_value={"name": "Example", "svg": "<svg/>", "custom": True}):
+                code, body = request("/api/cover", method="POST", token=server.token, origin=base,
+                                     data={"name": "Example", "mode": "preset"})
+                self.assertEqual(code, 200)
+                self.assertIn('"custom": true', body)
+            with patch.object(dashboard, "delete_repository", return_value={"deleted": "zonaro/Example"}) as mocked:
+                code, body = request("/api/delete", method="POST", token=server.token, origin=base,
+                                     data={"name": "Example", "confirmation": "zonaro/Example",
+                                           "expected_topics": [], "expected_private": False})
+                self.assertEqual(code, 200)
+                self.assertIn("zonaro/Example", body)
+                mocked.assert_called_once()
             self.assertEqual(request("/api/publish", method="POST", token=server.token,
                                      origin=base, data={"confirm": "PUBLICAR"})[0], 409)
             with patch.object(dashboard, "run_local", return_value="Prévia criada"):

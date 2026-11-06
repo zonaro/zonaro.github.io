@@ -25,7 +25,7 @@
       <div>
         <p class="eyebrow">CONTROLE DO PORTFÓLIO <span class="line"></span> GITHUB CLI</p>
         <h1>Projetos no <em>ritmo certo.</em></h1>
-        <p class="lead">Escolha quais repositórios entram no site. As alterações são salvas diretamente nas <strong>topics do GitHub</strong>, sem modificar código ou excluir repositórios.</p>
+        <p class="lead">Escolha quais repositórios entram no site. As classificações são salvas nas <strong>topics do GitHub</strong>. A exclusão definitiva é uma ação separada, com confirmação reforçada.</p>
       </div>
       <div class="intro-art" aria-hidden="true"><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><span class="glyph">&lt;Z/&gt;</span></div>
     </section>
@@ -39,7 +39,7 @@
 
     <section class="workspace" aria-labelledby="workspace-title">
       <div class="workspace-top">
-        <div><p class="section-kicker">GERENCIAMENTO</p><h2 id="workspace-title">Seus repositórios<span class="accent">.</span></h2><p>Sem classificação, o projeto permanece oculto no próximo site gerado.</p></div>
+        <div><p class="section-kicker">GERENCIAMENTO</p><h2 id="workspace-title">Seus repositórios<span class="accent">.</span></h2><p>Classificações e descrições são salvas automaticamente. Capas SVG ficam no portfólio local.</p></div>
         <button id="refresh-btn" class="button button-ghost" type="button"><span aria-hidden="true">↻</span> Atualizar do GitHub</button>
       </div>
 
@@ -51,7 +51,7 @@
         <label class="filter"><span>CATEGORIA</span><select id="category-filter"><option value="all">Todas</option><option value="primary">Principal</option><option value="secondary">Secundário</option><option value="catalog">Catálogo</option><option value="hidden">Ocultos</option><option value="conflict">Conflitos</option></select></label>
       </div>
 
-      <div class="list-meta"><span id="showing-count" aria-live="polite">Carregando repositórios...</span><span id="unsaved-count" class="unsaved-count" hidden>0 alterações pendentes</span></div>
+      <div class="list-meta"><span id="showing-count" aria-live="polite">Carregando repositórios...</span><span>Classificação e descrição salvas automaticamente</span></div>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
       <div id="loading" class="loading"><span class="spinner" aria-hidden="true"></span> Consultando o GitHub CLI...</div>
 
@@ -64,8 +64,7 @@
       </div>
 
       <div class="footer-actions">
-        <p>As mudanças só são enviadas ao GitHub quando você salva. Nenhum repositório será apagado.</p>
-        <button id="save-all-btn" class="button button-primary" type="button" disabled>Salvar alterações <span id="save-all-count">(0)</span> <span aria-hidden="true">↗</span></button>
+        <p>Alterar a classificação ou sair do campo de descrição salva no GitHub. Excluir é uma operação separada e exige confirmação.</p>
       </div>
       <div class="publish-panel">
         <h3>Gerar e publicar o portfólio</h3>
@@ -79,6 +78,39 @@
     </section>
     <section class="next-step"><div><span class="section-kicker">DEPOIS DE CLASSIFICAR</span><h3>Atualize o site com um comando.</h3><p>No terminal do seu Fedora, execute <code>./scripts/update-portfolio.sh</code> para gerar e revisar. Depois publique com <code>--publish</code>.</p></div><a class="text-link" href="https://zonaro.github.io/" target="_blank" rel="noopener noreferrer">Abrir portfólio ↗</a></section>
   </main>
+  <dialog id="cover-dialog" class="cover-dialog" aria-labelledby="cover-title">
+    <div class="cover-dialog-body">
+      <div class="modal-heading"><div><p class="section-kicker">IDENTIDADE VISUAL</p><h2 id="cover-title">Capa SVG do projeto</h2></div><button id="cover-close" type="button" class="button button-ghost">Fechar</button></div>
+      <p class="modal-help">A capa SVG será usada no portfólio se não houver Social Preview personalizada. Alterações são salvas no checkout local e entram no site quando você publicar a prévia.</p>
+      <img id="cover-preview" class="cover-preview" alt="Prévia da capa SVG">
+      <div class="cover-controls">
+        <label>Estilo<select id="cover-style"><option value="orbits">Órbitas</option><option value="grid">Grade tecnológica</option><option value="waves">Ondas</option></select></label>
+        <label>Símbolo<select id="cover-icon"><option value="auto">Automático</option><option value="code">Código</option><option value="game">Controle</option><option value="audio">Áudio</option><option value="folder">Pasta</option><option value="spark">Brilho</option><option value="letter">Inicial</option></select></label>
+        <label>Fundo<input id="cover-background" type="color" value="#31154f"></label>
+        <label>Destaque<input id="cover-accent" type="color" value="#c65dff"></label>
+      </div>
+      <p class="modal-help">Trocar estilo, símbolo ou cor substitui o SVG atual pelo modelo escolhido. Você também pode enviar seu próprio SVG ou editar o código abaixo.</p>
+      <label class="cover-upload">Enviar SVG <input id="cover-upload" type="file" accept=".svg,image/svg+xml"></label>
+      <label class="cover-source-label" for="cover-source">Editar SVG (salva ao sair do campo)</label>
+      <textarea id="cover-source" spellcheck="false" rows="7" aria-label="Código SVG da capa"></textarea>
+      <p id="cover-status" class="cover-status" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
+  <dialog id="delete-dialog" class="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-warning">
+    <div class="delete-dialog-body">
+      <p class="section-kicker">ZONA DE PERIGO</p>
+      <h2 id="delete-title">Excluir repositório?</h2>
+      <p id="delete-warning">Esta ação exclui o repositório no GitHub, incluindo código, issues e outros dados associados. A recuperação não é garantida. Faça backup se necessário.</p>
+      <p class="delete-target" id="delete-target"></p>
+      <label for="delete-confirmation">Digite o nome completo acima para confirmar:</label>
+      <input id="delete-confirmation" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="zonaro/nome-do-repositorio">
+      <p class="delete-permission">É necessário que o GitHub CLI tenha a permissão <code>delete_repo</code>. Se necessário, execute <code>gh auth refresh -s delete_repo</code> no terminal.</p>
+      <div class="delete-actions">
+        <button id="delete-cancel" type="button" class="button button-ghost">Cancelar</button>
+        <button id="delete-confirm" type="button" class="button button-danger" disabled>Excluir definitivamente</button>
+      </div>
+    </div>
+  </dialog>
   <footer class="footer"><span>© ZONARO · REDCLAW</span><span>PAINEL LOCAL · SEM CREDENCIAIS NO NAVEGADOR</span></footer>
 </body>
 </html>

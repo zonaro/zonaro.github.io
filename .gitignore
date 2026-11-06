@@ -1,3 +1,6 @@
 __pycache__/
 *.py[cod]
 .venv/
+# Capas SVG podem conter nomes de projetos ainda ocultos. O publicador
+# adiciona explicitamente apenas as capas dos projetos autorizados.
+/assets/portfolio-covers/*.svg

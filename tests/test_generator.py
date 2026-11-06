@@ -95,6 +95,29 @@ class GeneratorTests(unittest.TestCase):
             self.assertIn("Private demo", private_html)
             self.assertFalse(any(b"hidden-private" in contents for contents in after.values()))
 
+    def test_social_preview_precedence_and_custom_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            custom = root / "assets/portfolio-covers/public-one.svg"
+            custom.parent.mkdir(parents=True)
+            custom.write_text('<svg xmlns="http://www.w3.org/2000/svg"><rect width="20" height="20" fill="#aabbcc"/></svg>')
+            public = generator.Project("public-one", "Open", "primary", False, "public-one")
+            private = generator.Project("private-one", "Closed", "secondary", True, "private-one")
+            with patch.object(generator, "ROOT", root):
+                generator.write_if_changed(root / "index.html", '<!-- PORTFOLIO:SHOWCASE:START -->old<!-- PORTFOLIO:SHOWCASE:END --><!-- PORTFOLIO:CATALOG:START -->old<!-- PORTFOLIO:CATALOG:END -->')
+                generator.write_if_changed(root / "llms.txt", '# Intro\n')
+                generator.write_if_changed(root / "profile.json", '{}')
+                generator.generate([public, private])
+                self.assertEqual(public.image, "/assets/portfolio-covers/public-one.svg")
+                self.assertEqual(private.image, "/assets/generated/covers/private-one.svg")
+                self.assertTrue((root / "assets/generated/covers/private-one.svg").exists())
+                self.assertFalse((root / "assets/generated/covers/public-one.svg").exists())
+            # A personalized GitHub Social Preview always wins for public projects.
+            public.image = "/assets/generated/covers/public-one.png"
+            with patch.object(generator, "ROOT", root):
+                generator.generate([public, private])
+            self.assertEqual(public.image, "/assets/generated/covers/public-one.png")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,8 @@
   let repos = [];
   let busy = false;
   let previewReady = false;
-  const pending = new Map();
+  let deleteTarget = null;
+  let coverTarget = null;
 
   const normalize = (value) => String(value ?? "").normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
@@ -27,26 +28,19 @@
   }
 
   function notice(message, error = false) {
-    const el = $("notice");
-    el.hidden = !message;
-    el.classList.toggle("error", error);
-    el.textContent = message || "";
+    $("notice").hidden = !message;
+    $("notice").classList.toggle("error", error);
+    $("notice").textContent = message || "";
   }
-
-  function effectiveCategory(repo) { return pending.get(repo.name) ?? repo.category; }
 
   function counts() {
     $("count-total").textContent = String(repos.length);
     for (const category of ["primary", "secondary", "catalog"]) {
-      $("count-" + category).textContent = String(repos.filter((r) => effectiveCategory(r) === category).length);
+      $("count-" + category).textContent = String(repos.filter((r) => r.category === category).length);
     }
-    $("unsaved-count").textContent = `${pending.size} alterações pendentes`;
-    $("unsaved-count").hidden = pending.size === 0;
-    $("save-all-count").textContent = `(${pending.size})`;
-    $("save-all-btn").disabled = pending.size === 0 || busy;
     $("refresh-btn").disabled = busy;
-    $("preview-btn").disabled = busy || pending.size > 0 || repos.length === 0;
-    $("publish-btn").disabled = busy || !previewReady || pending.size > 0;
+    $("preview-btn").disabled = busy || repos.length === 0;
+    $("publish-btn").disabled = busy || !previewReady;
   }
 
   function make(tag, className, text) {
@@ -65,7 +59,15 @@
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     title.append(link);
-    projectCell.append(title, make("div", "repo-desc", repo.description || "Sem descrição"));
+    const desc = make("input", "repo-desc");
+    desc.type = "text";
+    desc.value = repo.description;
+    desc.maxLength = 350;
+    desc.placeholder = "Descrição curta do repositório...";
+    desc.setAttribute("aria-label", `Descrição de ${repo.name}`);
+    desc.disabled = busy;
+    desc.addEventListener("change", () => saveDescription(repo, desc.value));
+    projectCell.append(title, desc, make("small", "field-hint", "Descrição salva ao sair do campo"));
 
     const privacyCell = make("td");
     privacyCell.append(make("span", "visibility-tag" + (repo.private ? " private" : ""), repo.private ? "Privado" : "Público"));
@@ -73,7 +75,7 @@
     const categoryCell = make("td");
     const select = make("select", "category-select");
     select.setAttribute("aria-label", `Classificação de ${repo.name}`);
-    if (repo.category === "conflict" && !pending.has(repo.name)) {
+    if (repo.category === "conflict") {
       const placeholder = make("option", null, "Corrigir conflito");
       placeholder.value = "";
       placeholder.disabled = true;
@@ -84,27 +86,35 @@
       option.value = value;
       select.append(option);
     }
-    select.value = pending.get(repo.name) ?? (repo.category === "conflict" ? "" : repo.category);
+    select.value = repo.category === "conflict" ? "" : repo.category;
     select.disabled = busy;
-    select.classList.toggle("dirty", pending.has(repo.name));
+    select.addEventListener("change", () => saveCategory(repo, select.value));
     categoryCell.append(select);
     if (repo.category === "conflict") categoryCell.append(make("span", "conflict-label", "Mais de uma topic de portfólio"));
 
     const actionCell = make("td");
-    const save = make("button", "save-row", "Salvar");
-    save.type = "button";
-    save.disabled = busy || !pending.has(repo.name);
-    save.classList.toggle("ready", pending.has(repo.name));
-    actionCell.append(save);
-
-    select.addEventListener("change", () => {
-      if (select.value === repo.category) pending.delete(repo.name);
-      else pending.set(repo.name, select.value);
-      previewReady = false;
-      $("publish-note").hidden = true;
-      render();
-    });
-    save.addEventListener("click", () => saveRepo(repo));
+    const actions = make("div", "row-actions");
+    const cover = make("button", "row-action", "Capa SVG");
+    cover.type = "button";
+    cover.disabled = busy;
+    cover.addEventListener("click", () => openCover(repo));
+    const social = make("a", "row-action", "Social Preview ↗");
+    social.href = `${repo.url}/settings`;
+    social.target = "_blank";
+    social.rel = "noopener noreferrer";
+    social.title = "O upload da Social Preview é feito nas configurações do GitHub";
+    actions.append(cover, social);
+    if (repo.name.toLowerCase() === "zonaro.github.io") {
+      actions.append(make("span", "protected-label", "Exclusão protegida"));
+    } else {
+      const remove = make("button", "row-action row-action-danger", "Excluir");
+      remove.type = "button";
+      remove.disabled = busy;
+      remove.setAttribute("aria-label", `Excluir definitivamente ${repo.name}`);
+      remove.addEventListener("click", () => openDelete(repo));
+      actions.append(remove);
+    }
+    actionCell.append(actions);
     row.append(projectCell, privacyCell, categoryCell, actionCell);
     return row;
   }
@@ -116,9 +126,8 @@
     const filtered = repos.filter((repo) =>
       (!query || normalize(repo.name + " " + repo.description).includes(query)) &&
       (privacy === "all" || (privacy === "private") === repo.private) &&
-      (category === "all" || effectiveCategory(repo) === category));
-    const body = $("repo-rows");
-    body.replaceChildren(...filtered.map(renderRow));
+      (category === "all" || repo.category === category));
+    $("repo-rows").replaceChildren(...filtered.map(renderRow));
     $("empty-state").hidden = filtered.length > 0;
     $("showing-count").textContent = `Exibindo ${filtered.length} de ${repos.length} repositórios`;
     counts();
@@ -126,7 +135,6 @@
 
   async function loadRepos() {
     if (busy) return;
-    if (pending.size && !confirm("Descartar alterações ainda não salvas e atualizar do GitHub?")) return;
     busy = true;
     notice("");
     $("loading").hidden = false;
@@ -135,7 +143,6 @@
     try {
       const data = await api("/api/repos");
       repos = data.repositories;
-      pending.clear();
       previewReady = false;
       $("publish-note").hidden = true;
     } catch (error) { notice(error.message, true); }
@@ -147,78 +154,169 @@
     }
   }
 
-  async function saveRepo(repo) {
-    if (busy || !pending.has(repo.name)) return;
+  async function updateField(path, repo, payload, applyResult, success) {
+    if (busy) return;
     busy = true;
-    counts();
+    render();
     try {
-      const result = await api("/api/classify", {
-        name: repo.name, category: pending.get(repo.name), expected_topics: repo.topics,
-      });
-      repo.category = result.category;
-      repo.topics = result.topics;
-      pending.delete(repo.name);
+      const result = await api(path, payload);
+      applyResult(result);
       previewReady = false;
-      notice(`${repo.name}: classificação salva no GitHub.`);
+      $("publish-note").hidden = true;
+      notice(`${repo.name}: ${success}`);
     } catch (error) { notice(`${repo.name}: ${error.message}`, true); }
     finally { busy = false; render(); }
   }
 
-  async function saveAll() {
-    if (busy || !pending.size) return;
-    const targets = repos.filter((repo) => pending.has(repo.name));
-    let saved = 0;
-    let failed = 0;
-    const errors = [];
-    for (const repo of targets) {
-      if (!pending.has(repo.name)) continue;
-      busy = true;
-      counts();
-      try {
-        const result = await api("/api/classify", {
-          name: repo.name, category: pending.get(repo.name), expected_topics: repo.topics,
-        });
-        repo.category = result.category;
-        repo.topics = result.topics;
-        pending.delete(repo.name);
-        saved++;
-      } catch (error) { failed++; errors.push(`${repo.name}: ${error.message}`); }
-    }
-    busy = false;
-    previewReady = false;
-    notice(`${saved} salvos no GitHub${failed ? `; ${failed} falharam: ${errors.join(" | ")}` : "."}`, failed > 0);
+  function saveCategory(repo, category) {
+    if (!category || category === repo.category) return;
+    updateField("/api/classify", repo, {name: repo.name, category, expected_topics: repo.topics},
+      (result) => { repo.category = result.category; repo.topics = result.topics; }, "classificação salva automaticamente no GitHub.");
+  }
+
+  function saveDescription(repo, description) {
+    if (description === repo.description) return;
+    updateField("/api/description", repo,
+      {name: repo.name, description, expected_description: repo.description},
+      (result) => { repo.description = result.description; }, "descrição salva automaticamente no GitHub.");
+  }
+
+  function openDelete(repo) {
+    if (busy) return;
+    deleteTarget = repo;
+    const fullName = `zonaro/${repo.name}`;
+    $("delete-target").textContent = fullName;
+    $("delete-confirmation").value = "";
+    $("delete-confirmation").placeholder = fullName;
+    $("delete-confirm").disabled = true;
+    $("delete-dialog").showModal();
+    $("delete-confirmation").focus();
+  }
+
+  async function deleteRepo() {
+    if (busy || !deleteTarget) return;
+    const repo = deleteTarget;
+    const confirmation = $("delete-confirmation").value;
+    if (confirmation !== `zonaro/${repo.name}`) return;
+    $("delete-dialog").close();
+    deleteTarget = null;
+    busy = true;
     render();
+    try {
+      await api("/api/delete", {name: repo.name, confirmation,
+        expected_topics: repo.topics, expected_private: repo.private});
+      repos = repos.filter((r) => r.name !== repo.name);
+      previewReady = false;
+      $("publish-note").hidden = true;
+      notice(`${confirmation} foi excluído do GitHub. Gere uma prévia para removê-lo também do site estático.`);
+    } catch (error) { notice(`${repo.name}: ${error.message}`, true); }
+    finally { busy = false; render(); }
+  }
+
+  function coverStatus(message, error = false) {
+    $("cover-status").textContent = message;
+    $("cover-status").classList.toggle("error", error);
+  }
+
+  function setCover(data) {
+    $("cover-source").value = data.svg;
+    $("cover-preview").src = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(data.svg);
+    coverStatus(data.custom ? "Capa SVG personalizada no checkout local." : "Capa automática disponível. Personalize se desejar.");
+  }
+
+  async function openCover(repo) {
+    if (busy) return;
+    coverTarget = repo;
+    $("cover-title").textContent = `Capa SVG · ${repo.name}`;
+    coverStatus("Carregando capa...");
+    $("cover-dialog").showModal();
+    try {
+      const data = await api(`/api/cover?name=${encodeURIComponent(repo.name)}`);
+      if (coverTarget !== repo) return;
+      $("cover-background").value = data.default_background;
+      $("cover-accent").value = data.default_accent;
+      $("cover-style").value = "orbits";
+      $("cover-icon").value = "auto";
+      setCover(data);
+    }
+    catch (error) { coverStatus(error.message, true); }
+  }
+
+  async function saveCover(payload) {
+    if (busy || !coverTarget) return;
+    const repo = coverTarget;
+    busy = true;
+    render();
+    coverStatus("Salvando capa SVG no checkout local...");
+    try {
+      const data = await api("/api/cover", {name: repo.name, ...payload});
+      setCover(data);
+      coverStatus("Capa SVG salva automaticamente. Gere e publique uma prévia para atualizar o site.");
+      previewReady = false;
+      $("publish-note").hidden = true;
+    } catch (error) { coverStatus(error.message, true); }
+    finally { busy = false; render(); }
+  }
+
+  function saveCoverPreset() {
+    saveCover({mode: "preset", style: $("cover-style").value, icon: $("cover-icon").value,
+      background: $("cover-background").value, accent: $("cover-accent").value});
   }
 
   async function workflow(path, payload) {
-    if (busy || pending.size) return;
+    if (busy) return;
     busy = true;
-    counts();
+    render();
     const log = $("publish-note");
     log.hidden = false;
     log.textContent = "Executando localmente...";
     try {
       const result = await api(path, payload);
       log.textContent = result.summary || result.message || "Operação concluída.";
-      if (path === "/api/preview") previewReady = true;
-      else previewReady = false;
-      notice(path === "/api/preview" ? "Prévia local gerada; revise as alterações antes de publicar." : "Commit e push enviados ao GitHub.");
+      previewReady = path === "/api/preview";
+      notice(previewReady ? "Prévia local gerada; revise as alterações antes de publicar." : "Commit e push enviados ao GitHub.");
     } catch (error) {
       log.textContent = error.message;
       if (path === "/api/preview") previewReady = false;
       notice(error.message, true);
-    } finally { busy = false; counts(); }
+    } finally { busy = false; render(); }
   }
 
   $("search").addEventListener("input", render);
   $("visibility-filter").addEventListener("change", render);
   $("category-filter").addEventListener("change", render);
   $("refresh-btn").addEventListener("click", loadRepos);
-  $("save-all-btn").addEventListener("click", saveAll);
   $("preview-btn").addEventListener("click", () => workflow("/api/preview", {}));
   $("publish-btn").addEventListener("click", () => {
     if (prompt("Para publicar o resultado no site, digite PUBLICAR:") !== "PUBLICAR") return;
     workflow("/api/publish", {confirm: "PUBLICAR"});
+  });
+
+  $("delete-confirmation").addEventListener("input", () => {
+    $("delete-confirm").disabled = !deleteTarget || $("delete-confirmation").value !== `zonaro/${deleteTarget.name}`;
+  });
+  $("delete-cancel").addEventListener("click", () => $("delete-dialog").close());
+  $("delete-dialog").addEventListener("close", () => { deleteTarget = null; });
+  $("delete-confirm").addEventListener("click", deleteRepo);
+
+  $("cover-close").addEventListener("click", () => $("cover-dialog").close());
+  $("cover-dialog").addEventListener("close", () => { coverTarget = null; });
+  for (const id of ["cover-style", "cover-icon", "cover-background", "cover-accent"]) {
+    $(id).addEventListener("change", saveCoverPreset);
+  }
+  $("cover-source").addEventListener("change", () => saveCover({mode: "svg", svg: $("cover-source").value}));
+  $("cover-source").addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      saveCover({mode: "svg", svg: $("cover-source").value});
+    }
+  });
+  $("cover-upload").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 100_000) coverStatus("O SVG deve ter no máximo 100 KB.", true);
+    else saveCover({mode: "svg", svg: await file.text()});
+    event.target.value = "";
   });
   loadRepos();
 })();

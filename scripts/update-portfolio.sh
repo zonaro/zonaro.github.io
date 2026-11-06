@@ -38,7 +38,7 @@ if $publish; then
   while IFS= read -r changed; do
     file="${changed:3}"
     case "$file" in
-      index.html|profile.json|llms.txt|sitemap.xml|projects/*|assets/generated/*) ;;
+      index.html|profile.json|llms.txt|sitemap.xml|projects/*|assets/generated/*|assets/portfolio-covers/*) ;;
       *) printf 'Alteração não gerada detectada: %s. Revise antes de publicar.\n' "$file" >&2; exit 1 ;;
     esac
   done < <(git status --porcelain --untracked-files=all)
@@ -56,6 +56,29 @@ if ! $publish; then
 fi
 
 git add -A -- index.html profile.json llms.txt sitemap.xml assets/generated
+# Capas para projetos ainda ocultos devem continuar exclusivamente locais.
+# A lista elegível foi gerada de novo no comando acima; nunca stage a pasta toda.
+declare -A selected_slugs=()
+while IFS= read -r slug; do
+  [[ -n "$slug" ]] && selected_slugs["$slug"]=1
+done < <(python3 -c 'import json; from pathlib import Path; data=json.loads(Path("assets/generated/projects.json").read_text()); print("\n".join(p["slug"] for p in data))')
+shopt -s nullglob
+for cover in assets/portfolio-covers/*.svg; do
+  slug="${cover##*/}"
+  slug="${slug%.svg}"
+  if [[ -n "${selected_slugs[$slug]+yes}" ]]; then
+    git add -f -- "$cover"
+  fi
+done
+while IFS= read -r tracked; do
+  slug="${tracked##*/}"
+  slug="${slug%.svg}"
+  if [[ -z "${selected_slugs[$slug]+yes}" || ! -f "$tracked" ]]; then
+    # Remove from the public git tree, while preserving a local copy if present.
+    git rm --cached -q -- "$tracked"
+  fi
+done < <(git ls-files -- assets/portfolio-covers)
+shopt -u nullglob
 if [[ -d projects ]] || git ls-files --error-unmatch 'projects/*' >/dev/null 2>&1; then
   git add -A -- projects
 fi
@@ -71,6 +94,7 @@ if ! $yes; then
   read -r -p 'Confirmar commit e push na main? [s/N] ' answer
   if [[ "$answer" != "s" && "$answer" != "S" ]]; then
     git restore --staged -- index.html profile.json llms.txt sitemap.xml assets/generated
+    if [[ -d assets/portfolio-covers ]]; then git restore --staged -- assets/portfolio-covers; fi
     if [[ -d projects ]]; then git restore --staged -- projects; fi
     printf 'Publicação cancelada. Arquivos gerados mantidos para revisão.\n'
     exit 0
